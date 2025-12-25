@@ -1,0 +1,18 @@
+name: Project-Perturb
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11.8
+  - matplotlib
+  - numpy
+  - pandas
+  - seaborn
+  - scikit-learn
+  - statsmodels
+  - pip
+  - pip:
+    - anndata
+    - torch
+    - scanpy
+    - scipy
