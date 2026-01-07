@@ -21,11 +21,12 @@ class ErrorAnalyzer:
     Analyze errors from majority vote baseline predictions.
     """
     
-    def __init__(self, test_keys, predictions, true_labels, adata=None, task_name="DE"):
+    def __init__(self, dataset, test_keys, predictions, true_labels, adata=None, task_name="DE"):
         """
         Initialize error analyzer.
         
         Args:
+            dataset: String of dataset name (for book-keeping)
             test_keys: List of (pert, gene) tuples
             predictions: Array of predictions
             true_labels: Array of true labels
@@ -33,6 +34,7 @@ class ErrorAnalyzer:
             task_name: "DE" or "DOC"
         """
 
+        self.dataset = dataset
         self.test_keys = test_keys
         self.predictions = predictions
         self.true_labels = true_labels
@@ -79,7 +81,7 @@ class ErrorAnalyzer:
         })
 
         # Save full results
-        output_file = f"error_analysis/{self.task_name.lower()}_predictions.csv"
+        output_file = f"error_analysis/{self.dataset}_{self.task_name.lower()}_predictions.csv"
         df.to_csv(output_file, index=False)
         print(f"\nFull predictions with true labels saved to {output_file}")
 
@@ -132,7 +134,7 @@ class ErrorAnalyzer:
         print(df.head(top_k).to_string(index=False))
         
         # Save full results
-        output_file = f"error_analysis/{self.task_name.lower()}_gene_errors.csv"
+        output_file = f"error_analysis/{self.dataset}_{self.task_name.lower()}_gene_errors.csv"
         df.to_csv(output_file, index=False)
         print(f"\nFull gene error analysis saved to {output_file}")
         
@@ -185,7 +187,7 @@ class ErrorAnalyzer:
         print(df.head(top_k).to_string(index=False))
         
         # Save full results
-        output_file = f"error_analysis/{self.task_name.lower()}_perturbation_errors.csv"
+        output_file = f"error_analysis/{self.dataset}_{self.task_name.lower()}_perturbation_errors.csv"
         df.to_csv(output_file, index=False)
         print(f"\nFull perturbation error analysis saved to {output_file}")
         
@@ -382,7 +384,7 @@ class ErrorAnalyzer:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
             print(f"\nError distribution plots saved to {save_path}")
         else:
-            plt.savefig(f'error_analysis/{self.task_name.lower()}_error_analysis.png', dpi=300, bbox_inches='tight')
+            plt.savefig(f'error_analysis/{self.dataset}_{self.task_name.lower()}_error_analysis.png', dpi=300, bbox_inches='tight')
             print(f"\nError distribution plots saved to error_analysis/{self.task_name.lower()}_error_analysis.png")
         
         plt.close()
@@ -427,6 +429,7 @@ class ErrorAnalyzer:
 
 
 def run_error_analysis_from_results(
+    dataset,
     test_keys, 
     predictions, 
     true_labels, 
@@ -437,6 +440,7 @@ def run_error_analysis_from_results(
     Convenience function to run error analysis.
     
     Args:
+        dataset: String of dataset name (for book-keeping)
         test_keys: List of (pert, gene) tuples
         predictions: Array of predictions
         true_labels: Array of true labels
@@ -446,7 +450,7 @@ def run_error_analysis_from_results(
     Returns:
         ErrorAnalyzer object with results
     """
-    analyzer = ErrorAnalyzer(test_keys, predictions, true_labels, adata, task_name)
+    analyzer = ErrorAnalyzer(dataset, test_keys, predictions, true_labels, adata, task_name)
     results = analyzer.run_full_analysis()
     return analyzer, results
 

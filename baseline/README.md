@@ -1,26 +1,3 @@
-## PerturbQA Testing for DE and DOC
-```
-import numpy as np
-from perturbqa import load_de, load_dir, auc_per_gene
-
-data_de = load_de("rpe1")
-X_train = data_de["train"]
-X_test = data_de["test"]
-
-len(X_train) # 149147
-len(X_test)  # 37942
-
-keys = [(x["pert"], x["gene"]) for x in X_test]
-true = [x["label"] for x in X_test]
-
-# 0: 'gene' not differentially expressed upon perturbation 'pert'
-# 1: 'gene' differentially expressed upon perturbation 'pert'
-np.unique(true)  # array([0, 1])
-
-pred = np.random.randn(len(keys))
-auc = auc_per_gene(keys, pred, true)
-```
-
 ## The Naive Baseline: Majority Vote 
 ```
 python baseline.py \
@@ -51,3 +28,60 @@ python baseline.py \
 
    - Compares mean expression: pert vs control
    - 1 = up-regulated, 0 = down-regulated
+
+`baseline_accuracy.py`: additional metircs calculation + full error analysis. Run after getting DE results (long time to run!).
+
+## Error Analysis
+
+### Overview
+Analyzes prediction errors from the majority vote baseline to identify failure patterns:
+
+- By Gene: Which genes are consistently misclassified across perturbations?
+- By Perturbation: Which perturbations cause the most prediction errors?
+- By Expression: Do errors correlate with gene expression levels, variance, or sparsity?
+- Error Types: Are False Positives vs False Negatives driven by different factors?
+
+### Key Features
+
+1. Error Categorization
+
+- True Positives (TP): Correctly predicted positive class
+- True Negatives (TN): Correctly predicted negative class
+- False Positives (FP): Incorrectly predicted positive
+- False Negatives (FN): Incorrectly predicted negative
+
+2. Gene-Level Analysis
+
+Identifies genes that are consistently misclassified across perturbations.
+
+> Key Questions:
+Which genes have highest error rates?
+Are certain gene families problematic?
+Do housekeeping genes perform better?
+
+3. Perturbation-Level Analysis
+
+Identifies perturbations that cause unusual prediction patterns.
+
+> Key Questions:
+Which perturbations are hardest to predict?
+Do perturbations with strong effects have lower errors?
+Are off-target effects causing errors?
+
+4. Expression Pattern Analysis
+
+Correlates prediction errors with gene expression characteristics.
+
+> Key Questions:
+Do low-expressed genes have more errors?
+Does high variance correlate with errors?
+Are zero-inflated genes problematic?
+
+5. Distribution Analysis
+
+Checks for degenerate predictions (e.g., always predicting majority class).
+
+> Warning Signs:
+Model only predicts one class
+Severe class imbalance in predictions
+High error rate on minority class

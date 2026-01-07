@@ -1,3 +1,4 @@
 files/
 logs/
 PerturbQA/
+*.sh

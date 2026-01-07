@@ -4,7 +4,7 @@ baseline_accuracy.py
 
 Gene-level majority vote baseline for PerturbQA tasks II.
 
-Read in pre-computed DE results and compute additional metrics (accuracy, balanced
+Read in pre-computed DE and DOC results and compute additional metrics (accuracy, balanced
 accuracy) + conduct error analysis.
 """
 
@@ -185,17 +185,17 @@ for run in range(3):
     # Get true labels for test set
     true_de = np.array([de_labels.get(key, 0) for key in test_de_keys])
     true_doc = np.array([doc_labels.get(key, 0) for key in test_dir_keys])
-    
+
     # Calculate AUROC per gene
     print("  Calculating AUROC...")
     auroc_de = auc_per_gene(test_de_keys, pred_de, true_de)
     auroc_doc = auc_per_gene(test_dir_keys, pred_doc, true_doc)
     print("  Calculating ACCURACY...")
-    accuracy_de = accuracy_score(true_de, pred_de)
-    accuracy_doc = accuracy_score(true_doc, pred_doc)
+    accuracy_de = accuracy_score(true_de, pred_de.astype(int))
+    accuracy_doc = accuracy_score(true_doc, pred_doc.astype(int))
     print("  Calculating WEIGHTED ACCURACY...")
-    accuracy_weighted_de = balanced_accuracy_score(true_de, pred_de)
-    accuracy_weighted_doc= balanced_accuracy_score(true_doc, pred_doc)
+    accuracy_weighted_de = balanced_accuracy_score(true_de, pred_de.astype(int))
+    accuracy_weighted_doc= balanced_accuracy_score(true_doc, pred_doc.astype(int))
     
     print(f"  DE AUROC: {auroc_de:.4f}")
     print(f"  DE ACCURACY: {accuracy_de:.4f}")
@@ -218,9 +218,10 @@ for run in range(3):
         print("Differential Expression Error Analysis")
         print("="*60)
         de_analyzer, de_error_results = run_error_analysis_from_results(
+            dataset_name,
             test_de_keys,
-            pred_de,
-            true_de,
+            pred_de.astype(int),
+            true_de.astype(int),
             adata=adata,
             task_name="DE"
         )
@@ -230,9 +231,10 @@ for run in range(3):
         print("Direction of Change Error Analysis")
         print("="*60)
         doc_analyzer, doc_error_results = run_error_analysis_from_results(
+            dataset_name,
             test_dir_keys,
-            pred_doc,
-            true_doc,
+            pred_doc.astype(int),
+            true_doc.astype(int),
             adata=adata,
             task_name="DOC"
         )
