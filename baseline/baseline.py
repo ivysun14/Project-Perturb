@@ -2,7 +2,7 @@
 baseline.py
 ===========
 
-Gene-level majority vote baseline for PerturbQA tasks.
+Gene-level majority vote baseline for PerturbQA tasks I.
 
 This script evaluates a simple baseline that predicts the majority class
 for each gene based on training data, following PerturbQA's evaluation protocol.
