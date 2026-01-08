@@ -107,7 +107,7 @@ def predict_from_gene_majority(test_keys: List[Tuple],
     return np.array(predictions)
 
 # adata from VCC
-adata = ad.read_h5ad("../../VCC2025/vcc_raw_data/rpe1_raw_singlecell_01.h5ad")
+adata = ad.read_h5ad("../../VCC2025/vcc_raw_data/GSE264667_hepg2_raw_singlecell_01.h5ad")
 print(f"Loaded: {adata.shape[0]} cells x {adata.shape[1]} genes")
 adata.obs.rename(columns={"gene": "target_gene"}, inplace=True)
 adata = resolve_repeats(adata, gene_row="gene_name")
@@ -116,9 +116,9 @@ sc.pp.log1p(adata)
 print("Log TP10k normalization completed (matching PerturbQA).")
 
 # Load pre-computed DE and DOC files
-dataset_name = "rpe1"
-de = pd.read_csv('files/rpe1_de_results.csv')
-doc = pd.read_csv("files/rpe1_direction_results.csv")
+dataset_name = "hepg2"
+de = pd.read_csv('files/hepg2_de_results.csv')
+doc = pd.read_csv("files/hepg2_direction_results.csv")
 
 print("Constructing DE labels...")
 de_labels = {}
@@ -212,7 +212,7 @@ for run in range(3):
     results['doc_balanced_accuracy'].append(accuracy_weighted_doc)
 
     # Run error analysis in the final run
-    if run == 3:
+    if run == 2:
         # DE task error analysis
         print("\n" + "="*60)
         print("Differential Expression Error Analysis")
