@@ -23,11 +23,11 @@ from error_utility import run_error_analysis_from_results
 
 
 # Define train and test cell line
-train_cellline = "rpe1"
-test_cellline = "jurkat"
+train_cellline = "hepg2"
+test_cellline = "rpe1"
 
 # adata from VCC (Test cell line)
-adata = ad.read_h5ad("../../VCC2025/vcc_raw_data/GSE264667_jurkat_raw_singlecell_01.h5ad")
+adata = ad.read_h5ad("../../VCC2025/vcc_raw_data/rpe1_raw_singlecell_01.h5ad")
 print(f"Loaded: {adata.shape[0]} cells x {adata.shape[1]} genes")
 adata.obs.rename(columns={"gene": "target_gene"}, inplace=True)
 adata = resolve_repeats(adata, gene_row="gene_name")
@@ -36,12 +36,12 @@ sc.pp.log1p(adata)
 print("Log TP10k normalization completed (matching PerturbQA).")
 
 # Load pre-computed DE and DOC files (Train cell line)
-de_train = pd.read_csv('files/rpe1_de_results.csv')
-doc_train = pd.read_csv("files/rpe1_direction_results.csv")
+de_train = pd.read_csv('files/hepg2_de_results.csv')
+doc_train = pd.read_csv("files/hepg2_direction_results.csv")
 
 # Load pre-computed DE and DOC files (Test cell line)
-de_test = pd.read_csv('files/jurkat_de_results.csv')
-doc_test = pd.read_csv("files/jurkat_direction_results.csv")
+de_test = pd.read_csv('files/rpe1_de_results.csv')
+doc_test = pd.read_csv("files/rpe1_direction_results.csv")
 
 # Construst DE and DOC labels (Train cell line)
 print("Constructing DE labels for training cell line...")
@@ -160,7 +160,7 @@ for run in range(3):
         print("Differential Expression Error Analysis")
         print("="*60)
         de_analyzer, de_error_results = run_error_analysis_from_results(
-            dataset_name=f"{train_cellline}_to_{test_cellline}",
+            dataset=f"{train_cellline}_to_{test_cellline}",
             test_keys=test_de_keys,
             predictions=pred_de.astype(int),
             true_labels=true_de.astype(int),
@@ -173,7 +173,7 @@ for run in range(3):
         print("Direction of Change Error Analysis")
         print("="*60)
         doc_analyzer, doc_error_results = run_error_analysis_from_results(
-            dataset_name=f"{train_cellline}_to_{test_cellline}",
+            dataset=f"{train_cellline}_to_{test_cellline}",
             test_keys=test_dir_keys,
             predictions=pred_doc.astype(int),
             true_labels=true_doc.astype(int),
