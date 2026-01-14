@@ -19,7 +19,6 @@ from sklearn.metrics import (
     f1_score
 )
 
-
 def resolve_repeats(adata, gene_row="gene_name"):
     """
     Take column-wise averages for repeatedly measured genes.
@@ -306,20 +305,10 @@ def train_gene_majority_vote(train_data: pd.DataFrame) -> Dict[str, int]:
     Train gene-level majority vote predictor for 3-class problem.
 
     Args:
-        train_data: DataFrame with columns [gene, label]
-                   where label is 0 (non-DE), 1 (up-regulated), or 2 (down-regulated)
+        train_data: DataFrame with columns [pert, gene, label]
 
     Returns:
         Dict mapping gene -> majority class (0, 1, or 2)
-
-    Examples:
-        >>> train_df = pd.DataFrame({
-        ...     'gene': ['GENE1', 'GENE1', 'GENE2', 'GENE2'],
-        ...     'label': [1, 1, 0, 2]
-        ... })
-        >>> gene_majority = train_gene_majority_vote(train_df)
-        >>> gene_majority['GENE1']  # Should be 1 (up-regulated)
-        1
     """
     gene_stats = defaultdict(lambda: {0: 0, 1: 0, 2: 0})
 
@@ -351,12 +340,6 @@ def predict_from_gene_majority(test_data: pd.DataFrame,
 
     Returns:
         Array of predictions
-
-    Examples:
-        >>> test_df = pd.DataFrame({'gene': ['GENE1', 'GENE2', 'GENE3']})
-        >>> gene_majority = {'GENE1': 1, 'GENE2': 2}
-        >>> predictions = predict_from_gene_majority(test_df, gene_majority, default_pred=0)
-        >>> # GENE1 -> 1, GENE2 -> 2, GENE3 -> 0 (default)
     """
     predictions = []
     for _, row in test_data.iterrows():
@@ -393,14 +376,9 @@ def compute_3class_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, 
             - precision_class_{i}: Precision for class i (i=0,1,2)
             - recall_class_{i}: Recall for class i (i=0,1,2)
             - f1_class_{i}: F1 score for class i (i=0,1,2)
-
-    Examples:
-        >>> y_true = np.array([0, 1, 2, 0, 1])
-        >>> y_pred = np.array([0, 1, 2, 1, 1])
-        >>> metrics = compute_3class_metrics(y_true, y_pred)
-        >>> print(metrics['accuracy'])  # Overall accuracy
-        0.8
     """
+
+    # Overall metrics
     metrics = {
         'accuracy': accuracy_score(y_true, y_pred),
         'balanced_accuracy': balanced_accuracy_score(y_true, y_pred),
@@ -415,7 +393,6 @@ def compute_3class_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, 
     f1_per_class = f1_score(y_true, y_pred, average=None, zero_division=0)
 
     for class_idx in range(3):
-        # Per-class accuracy: (true positives for this class) / (total samples of this class)
         class_mask = (y_true == class_idx)
         if class_mask.sum() > 0:
             accuracy_per_class = (y_pred[class_mask] == class_idx).sum() / class_mask.sum()
