@@ -2,7 +2,7 @@
 analysis_utility.py
 ===================
 
-Utility functions used in analysis workflow and model training.
+Utility functions for model training workflow.
 """
 
 import numpy as np
@@ -300,16 +300,20 @@ def filter_perturbqa_style(
     return filtered_df
 
 
-def train_gene_majority_vote(train_data: pd.DataFrame) -> Dict[str, int]:
+def train_gene_majority_vote(train_data: pd.DataFrame, random_seed: int = None) -> Dict[str, int]:
     """
     Train gene-level majority vote predictor for 3-class problem.
 
     Args:
         train_data: DataFrame with columns [pert, gene, label]
+        random_seed: Optional random seed for reproducible tie-breaking
 
     Returns:
         Dict mapping gene -> majority class (0, 1, or 2)
     """
+    if random_seed is not None:
+        np.random.seed(random_seed)
+
     gene_stats = defaultdict(lambda: {0: 0, 1: 0, 2: 0})
 
     for _, row in train_data.iterrows():
@@ -319,10 +323,33 @@ def train_gene_majority_vote(train_data: pd.DataFrame) -> Dict[str, int]:
 
     # Determine majority class per gene
     gene_majority = {}
+    tied_genes = []
+
     for gene, counts in gene_stats.items():
-        # Find class with maximum count
-        majority_class = max(counts.items(), key=lambda x: x[1])[0]
+        # Find maximum count
+        max_count = max(counts.values())
+        # Find all classes with the maximum count
+        tied_classes = [cls for cls, cnt in counts.items() if cnt == max_count]
+
+        if len(tied_classes) > 1:
+            # Randomly select one class with equal probability
+            tied_genes.append((gene, tied_classes, counts))
+            majority_class = np.random.choice(tied_classes)
+        else:
+            majority_class = tied_classes[0]
+
         gene_majority[gene] = majority_class
+
+    if tied_genes:
+        print(f"\nNumber of genes with tied majority: {len(tied_genes)}")
+        print(f"Tied genes (randomly resolved):")
+        for gene, tied_classes, counts in tied_genes:
+            class_names = {0: 'Non-DE', 1: 'Up', 2: 'Down'}
+            tied_str = ', '.join([f"{class_names.get(c, c)}({counts[c]})" for c in tied_classes])
+            assigned = gene_majority[gene]
+            print(f"  {gene}: tied between [{tied_str}] -> assigned {class_names.get(assigned, assigned)}")
+    else:
+        print(f"\nNo genes with tied majority classes.")
 
     return gene_majority
 
@@ -342,13 +369,17 @@ def predict_from_gene_majority(test_data: pd.DataFrame,
         Array of predictions
     """
     predictions = []
+    n_unseen = 0
+    
     for _, row in test_data.iterrows():
         gene = row['gene']
         if gene in gene_majority:
             predictions.append(gene_majority[gene])
         else:
+            n_unseen += 1
             predictions.append(default_pred)
 
+    print(f"Observed {n_unseen} unseen genes from the training phase in the test set.")
     return np.array(predictions)
 
 
@@ -372,9 +403,8 @@ def compute_3class_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, 
             - precision_macro: Macro-averaged precision
             - recall_macro: Macro-averaged recall
             - f1_macro: Macro-averaged F1 score
-            - accuracy_class_{i}: Accuracy for class i (i=0,1,2)
             - precision_class_{i}: Precision for class i (i=0,1,2)
-            - recall_class_{i}: Recall for class i (i=0,1,2)
+            - recall_class_{i}: Recall for class i (i=0,1,2) (aka. accuracy)
             - f1_class_{i}: F1 score for class i (i=0,1,2)
     """
 
@@ -393,13 +423,6 @@ def compute_3class_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, 
     f1_per_class = f1_score(y_true, y_pred, average=None, zero_division=0)
 
     for class_idx in range(3):
-        class_mask = (y_true == class_idx)
-        if class_mask.sum() > 0:
-            accuracy_per_class = (y_pred[class_mask] == class_idx).sum() / class_mask.sum()
-        else:
-            accuracy_per_class = 0.0
-
-        metrics[f'accuracy_class_{class_idx}'] = accuracy_per_class
         metrics[f'precision_class_{class_idx}'] = precision_per_class[class_idx]
         metrics[f'recall_class_{class_idx}'] = recall_per_class[class_idx]
         metrics[f'f1_class_{class_idx}'] = f1_per_class[class_idx]
