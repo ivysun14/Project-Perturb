@@ -20,14 +20,14 @@ import os
 import numpy as np
 import pandas as pd
 import argparse
-import matplotlib.pyplot as plt
 from collections import defaultdict
 from sklearn.metrics import classification_report
 from typing import Dict, List, Tuple
 from analysis_utility import (
     train_gene_majority_vote,
     predict_from_gene_majority,
-    compute_3class_metrics
+    compute_3class_metrics,
+    plot_data_summary
 )
 from error_utility import run_error_analysis_from_results
 
@@ -93,123 +93,6 @@ def load_and_merge_de_doc(de_path: str, doc_path: str) -> pd.DataFrame:
     print(f"  Down-regulated (2): {(merged_df['label'] == 2).sum()}")
 
     return merged_df
-
-
-def plot_data_summary(train_df: pd.DataFrame, test_df: pd.DataFrame, dataset_name: str, save_path: str = None):
-    """
-    Plot label distribution and perturbation counts for train and test sets.
-
-    Args:
-        train_df: Training DataFrame with columns [pert, gene, label]
-        test_df: Test DataFrame with columns [pert, gene, label]
-        dataset_name: Name of the dataset (for plot title)
-        save_path: Path to save the figure (optional)
-    """
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-
-    class_names = ['Non-DE (0)', 'Up-reg (1)', 'Down-reg (2)']
-
-    # 1. Label distribution (bar chart)
-    train_counts = [
-        (train_df['label'] == 0).sum(),
-        (train_df['label'] == 1).sum(),
-        (train_df['label'] == 2).sum()
-    ]
-    test_counts = [
-        (test_df['label'] == 0).sum(),
-        (test_df['label'] == 1).sum(),
-        (test_df['label'] == 2).sum()
-    ]
-
-    x = np.arange(len(class_names))
-    width = 0.35
-
-    bars1 = axes[0].bar(x - width/2, train_counts, width, label='Train', color='steelblue')
-    bars2 = axes[0].bar(x + width/2, test_counts, width, label='Test', color='darkorange')
-
-    axes[0].set_xlabel('Class')
-    axes[0].set_ylabel('Count')
-    axes[0].set_title(f'{dataset_name}: Label Distribution')
-    axes[0].set_xticks(x)
-    axes[0].set_xticklabels(class_names)
-    axes[0].legend()
-
-    # Add count labels on bars
-    for bar in bars1:
-        height = bar.get_height()
-        axes[0].annotate(f'{int(height)}',
-                         xy=(bar.get_x() + bar.get_width()/2, height),
-                         xytext=(0, 3), textcoords="offset points",
-                         ha='center', va='bottom', fontsize=8)
-    for bar in bars2:
-        height = bar.get_height()
-        axes[0].annotate(f'{int(height)}',
-                         xy=(bar.get_x() + bar.get_width()/2, height),
-                         xytext=(0, 3), textcoords="offset points",
-                         ha='center', va='bottom', fontsize=8)
-
-    # 2. Perturbation counts
-    train_perts = train_df['pert'].nunique()
-    test_perts = test_df['pert'].nunique()
-    train_genes = train_df['gene'].nunique()
-    test_genes = test_df['gene'].nunique()
-
-    categories = ['Perturbations', 'Genes', 'Total Pairs']
-    train_values = [train_perts, train_genes, len(train_df)]
-    test_values = [test_perts, test_genes, len(test_df)]
-
-    x = np.arange(len(categories))
-
-    bars1 = axes[1].bar(x - width/2, train_values, width, label='Train', color='steelblue')
-    bars2 = axes[1].bar(x + width/2, test_values, width, label='Test', color='darkorange')
-
-    axes[1].set_xlabel('Category')
-    axes[1].set_ylabel('Count')
-    axes[1].set_title(f'{dataset_name}: Train/Test Split Summary')
-    axes[1].set_xticks(x)
-    axes[1].set_xticklabels(categories)
-    axes[1].legend()
-
-    # Add count labels on bars
-    for bar in bars1:
-        height = bar.get_height()
-        axes[1].annotate(f'{int(height)}',
-                         xy=(bar.get_x() + bar.get_width()/2, height),
-                         xytext=(0, 3), textcoords="offset points",
-                         ha='center', va='bottom', fontsize=8)
-    for bar in bars2:
-        height = bar.get_height()
-        axes[1].annotate(f'{int(height)}',
-                         xy=(bar.get_x() + bar.get_width()/2, height),
-                         xytext=(0, 3), textcoords="offset points",
-                         ha='center', va='bottom', fontsize=8)
-
-    plt.tight_layout()
-
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"\nData summary plot saved to {save_path}")
-    else:
-        plt.savefig(f'error_analysis/{dataset_name}_data_summary.png', dpi=300, bbox_inches='tight')
-        print(f"\nData summary plot saved to error_analysis/{dataset_name}_data_summary.png")
-
-    plt.close()
-
-    # Print summary statistics
-    print(f"\n{'='*50}")
-    print("Data Summary")
-    print(f"{'='*50}")
-    print(f"\nTrain set:")
-    print(f"  Perturbations: {train_perts}")
-    print(f"  Genes: {train_genes}")
-    print(f"  Total pairs: {len(train_df)}")
-    print(f"  Label distribution: Non-DE={train_counts[0]}, Up={train_counts[1]}, Down={train_counts[2]}")
-
-    print(f"\nTest set:")
-    print(f"  Perturbations: {test_perts}")
-    print(f"  Genes: {test_genes}")
-    print(f"  Total pairs: {len(test_df)}")
-    print(f"  Label distribution: Non-DE={test_counts[0]}, Up={test_counts[1]}, Down={test_counts[2]}")
 
 
 if __name__ == "__main__":
