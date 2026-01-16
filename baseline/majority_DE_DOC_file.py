@@ -18,6 +18,7 @@ Input CSV format (from DE_DOC_stats.py):
 - log2FC: log2 fold change
 """
 
+import os
 import numpy as np
 import pandas as pd
 import argparse
@@ -28,11 +29,13 @@ from typing import Dict, Tuple
 from analysis_utility import (
     train_gene_majority_vote,
     predict_from_gene_majority,
-    compute_3class_metrics
+    compute_3class_metrics,
+    plot_data_summary
 )
+from error_utility import run_error_analysis_from_results
 
 
-def load_de_doc_file(file_path: str, test_size: float = 0.2, random_state: int = 42) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def load_de_doc_file(file_path: str, test_size: float = 0.25, random_state: int = 305) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Load DE+DOC CSV file and split into train/test.
 
@@ -67,12 +70,16 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Gene-based majority vote baseline for 3-class DE prediction from DE_DOC file')
     parser.add_argument('--de_doc_file', type=str, required=True, help='Path to DE_DOC CSV file from DE_DOC_stats.py')
-    parser.add_argument('--test_size', type=float, default=0.2, help='Fraction of data for testing (default: 0.2)')
+    parser.add_argument('--dataset_name', type=str, required=True, help='Dataset name (for output files)')
+    parser.add_argument('--test_size', type=float, default=0.25, help='Fraction of data for testing (default: 0.25)')
     parser.add_argument('--n_runs', type=int, default=3, help='Number of runs with different train subsampling (default: 3)')
     parser.add_argument('--train_fraction', type=float, default=0.8, help='Fraction of training data to use in each run (default: 0.8)')
-    parser.add_argument('--random_seed', type=int, default=42, help='Random seed for train/test split (default: 42)')
+    parser.add_argument('--random_seed', type=int, default=305, help='Random seed for train/test split (default: 305)')
 
     args = parser.parse_args()
+
+    # Create error_analysis directory if it doesn't exist
+    os.makedirs('error_analysis', exist_ok=True)
 
     print("="*70)
     print("3-Class Gene-Based Majority Vote Baseline (DE_DOC File)")
@@ -85,15 +92,8 @@ if __name__ == "__main__":
     print(f"\nTrain set size: {len(train_df)}")
     print(f"Test set size: {len(test_df)}")
 
-    print(f"\nTrain set label distribution:")
-    print(f"  Non-DE (0): {(train_df['label'] == 0).sum()}")
-    print(f"  Up-regulated (1): {(train_df['label'] == 1).sum()}")
-    print(f"  Down-regulated (2): {(train_df['label'] == 2).sum()}")
-
-    print(f"\nTest set label distribution:")
-    print(f"  Non-DE (0): {(test_df['label'] == 0).sum()}")
-    print(f"  Up-regulated (1): {(test_df['label'] == 1).sum()}")
-    print(f"  Down-regulated (2): {(test_df['label'] == 2).sum()}")
+    # Plot data summary
+    plot_data_summary(train_df, test_df, args.dataset_name)
 
     # Store results from multiple runs
     all_metrics = defaultdict(list)
@@ -114,7 +114,7 @@ if __name__ == "__main__":
 
         # Train gene-level majority vote
         print("Training gene-level majority vote...")
-        gene_majority = train_gene_majority_vote(train_subsample)
+        gene_majority = train_gene_majority_vote(train_subsample, random_seed=run)
         print(f"Learned majority class for {len(gene_majority)} genes")
 
         # Predict on test set
@@ -140,7 +140,6 @@ if __name__ == "__main__":
         for class_idx in range(3):
             class_name = ['Non-DE', 'Up-regulated', 'Down-regulated'][class_idx]
             print(f"    {class_name} (class {class_idx}):")
-            print(f"      Accuracy:  {metrics[f'accuracy_class_{class_idx}']:.4f}")
             print(f"      Precision: {metrics[f'precision_class_{class_idx}']:.4f}")
             print(f"      Recall:    {metrics[f'recall_class_{class_idx}']:.4f}")
             print(f"      F1:        {metrics[f'f1_class_{class_idx}']:.4f}")
@@ -166,7 +165,7 @@ if __name__ == "__main__":
     for class_idx in range(3):
         class_name = ['Non-DE', 'Up-regulated', 'Down-regulated'][class_idx]
         print(f"  {class_name} (class {class_idx}):")
-        for metric_type in ['accuracy', 'precision', 'recall', 'f1']:
+        for metric_type in ['precision', 'recall', 'f1']:
             metric_key = f'{metric_type}_class_{class_idx}'
             mean, se = format_mean_se(all_metrics[metric_key])
             print(f"    {metric_type.capitalize():10s}: {mean:.4f} ± {se:.4f}")
@@ -181,3 +180,25 @@ if __name__ == "__main__":
         target_names=['Non-DE', 'Up-regulated', 'Down-regulated'],
         zero_division=0
     ))
+
+    # Run error analysis on the last run
+    print(f"\n{'='*70}")
+    print("ERROR ANALYSIS (Last Run)")
+    print(f"{'='*70}")
+
+    # Create test_keys as list of (pert, gene) tuples
+    test_keys = list(zip(test_df['pert'], test_df['gene']))
+
+    analyzer, error_results = run_error_analysis_from_results(
+        dataset=args.dataset_name,
+        test_keys=test_keys,
+        predictions=y_pred,
+        true_labels=y_true,
+        adata=None,  # No AnnData for expression analysis
+        task_name="3class_DE",
+        class_names=['Non-DE', 'Up-regulated', 'Down-regulated']
+    )
+
+    print(f"\n{'='*70}")
+    print("ANALYSIS COMPLETE")
+    print(f"{'='*70}")
