@@ -142,11 +142,14 @@ if __name__ == "__main__":
 
         # Predict on test set
         print("Predicting on test set...")
-        y_pred = predict_from_gene_majority(test_df, gene_majority, default_pred=0)
+        y_pred, unseen_mask = predict_from_gene_majority(test_df, gene_majority, default_pred=0)
+        y_pred_seen = y_pred[~unseen_mask]
+        
         y_true = test_df['label'].values
+        y_true_seen = y_true[~unseen_mask]
 
         # Compute metrics
-        metrics = compute_3class_metrics(y_true, y_pred)
+        metrics = compute_3class_metrics(y_true_seen, y_pred_seen)
 
         # Store metrics
         for key, value in metrics.items():
@@ -198,8 +201,8 @@ if __name__ == "__main__":
     print("Detailed Classification Report (Last Run)")
     print(f"{'='*70}")
     print(classification_report(
-        y_true,
-        y_pred,
+        y_true_seen,
+        y_pred_seen,
         target_names=['Non-DE', 'Up-regulated', 'Down-regulated'],
         zero_division=0
     ))
@@ -211,12 +214,13 @@ if __name__ == "__main__":
 
     # Create test_keys as list of (pert, gene) tuples
     test_keys = list(zip(test_df['pert'], test_df['gene']))
+    test_keys_seen = [k for k, is_unseen in zip(test_keys, unseen_mask) if not is_unseen]
 
     analyzer, error_results = run_error_analysis_from_results(
         dataset=args.dataset_name_train + "_to_" + args.dataset_name_test,
-        test_keys=test_keys,
-        predictions=y_pred,
-        true_labels=y_true,
+        test_keys=test_keys_seen,
+        predictions=y_pred_seen,
+        true_labels=y_true_seen,
         adata=None,  # No AnnData for expression analysis
         task_name="3class_DE",
         class_names=['Non-DE', 'Up-regulated', 'Down-regulated']

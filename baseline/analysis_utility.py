@@ -369,20 +369,24 @@ def predict_from_gene_majority(test_data: pd.DataFrame,
 
     Returns:
         Array of predictions
+        Array of boolean mask: predictions[unseen_mask] isolate out only seen gene in test
     """
     predictions = []
     n_unseen = 0
+    unseen_mask = []
     
     for _, row in test_data.iterrows():
         gene = row['gene']
         if gene in gene_majority:
             predictions.append(gene_majority[gene])
+            unseen_mask.append(False)
         else:
             n_unseen += 1
+            unseen_mask.append(True)
             predictions.append(default_pred)
 
     print(f"Observed {n_unseen} unseen genes from the training phase in the test set.")
-    return np.array(predictions)
+    return np.array(predictions), np.array(unseen_mask)
 
 
 def compute_3class_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
