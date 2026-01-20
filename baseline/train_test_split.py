@@ -55,6 +55,16 @@ def split_train_test(df: pd.DataFrame, file_path: str, test_size: float = 0.25, 
     # Assign each perturbation to a stratum based on dominant label
     pert_dominant_label = pert_proportions.idxmax(axis=1)
 
+    # Check for rare strata (< 2 members) which would cause stratified split to fail
+    strata_counts = pert_dominant_label.value_counts()
+    rare_strata = strata_counts[strata_counts < 2].index.tolist()
+
+    if rare_strata:
+        print(f"\nWARNING: Strata with <2 perturbations detected: {rare_strata}")
+        print("  Merging rare strata into the most common stratum for stratification.")
+        most_common_stratum = strata_counts.idxmax()
+        pert_dominant_label = pert_dominant_label.replace(rare_strata, most_common_stratum)
+
     # Perform stratified split on perturbations
     perturbations = pert_dominant_label.index.values
     strata = pert_dominant_label.values
@@ -98,12 +108,12 @@ def split_train_test(df: pd.DataFrame, file_path: str, test_size: float = 0.25, 
 if __name__ == "__main__":
 
     # read in csv
-    df = pd.read_csv("files/DE_DOC_jurkat.csv")
+    df = pd.read_csv("files/DE_DOC_hepg2.csv")
     
     # update labels based on set p-value and log2FC threshold
     #df_strict = update_DE_DOC_labels(df, alpha=0.10, log2fc_threshold=0.0)
 
     # perform train/test split
-    df_strict_splitted = split_train_test(df, file_path="files/DE_DOC_jurkat_splitted.csv")
+    df_strict_splitted = split_train_test(df, file_path="files/DE_DOC_hepg2_splitted.csv")
 
     print("\nDone!")
