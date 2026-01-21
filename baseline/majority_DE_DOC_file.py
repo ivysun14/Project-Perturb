@@ -55,13 +55,17 @@ def load_de_doc_file(file_path: str, test_size: float = 0.25, random_state: int 
     print(f"  Up-regulated (1): {(df['label'] == 1).sum()}")
     print(f"  Down-regulated (2): {(df['label'] == 2).sum()}")
 
-    # Split into train/test
-    train_df, test_df = train_test_split(
-        df,
-        test_size=test_size,
-        random_state=random_state,
-        stratify=df['label']  # Stratified split to maintain class distribution
-    )
+    if 'split' in df.columns:
+        train_df = df[df['split'] == 'train']
+        test_df = df[df['split'] == 'test']
+    else:
+        # NOTE: This part is split by samples, not by perturbations!
+        train_df, test_df = train_test_split(
+            df,
+            test_size=test_size,
+            random_state=random_state,
+            stratify=df['label']  # Stratified split to maintain class distribution
+        )
 
     return train_df, test_df
 
@@ -119,7 +123,7 @@ if __name__ == "__main__":
 
         # Predict on test set
         print("Predicting on test set...")
-        y_pred = predict_from_gene_majority(test_df, gene_majority, default_pred=0)
+        y_pred, _ = predict_from_gene_majority(test_df, gene_majority, default_pred=0)
         y_true = test_df['label'].values
 
         # Compute metrics
