@@ -18,7 +18,8 @@ from sklearn.metrics import (
     balanced_accuracy_score,
     precision_score,
     recall_score,
-    f1_score
+    f1_score,
+    roc_auc_score
 )
 
 def resolve_repeats(adata, gene_row="gene_name"):
@@ -389,7 +390,7 @@ def predict_from_gene_majority(test_data: pd.DataFrame,
     return np.array(predictions), np.array(unseen_mask)
 
 
-def compute_3class_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+def compute_3class_metrics(y_true: np.ndarray, y_pred: np.ndarray, y_proba: np.ndarray = None) -> Dict[str, float]:
     """
     Compute classification metrics for 3-class problem.
 
@@ -401,6 +402,8 @@ def compute_3class_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, 
     Args:
         y_true: True labels (0, 1, or 2)
         y_pred: Predicted labels (0, 1, or 2)
+        y_proba: Optional predicted probabilities of shape (n_samples, 3).
+                 If provided, One-vs-Rest AUROC metrics will be computed.
 
     Returns:
         Dict with keys:
@@ -412,6 +415,8 @@ def compute_3class_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, 
             - precision_class_{i}: Precision for class i (i=0,1,2)
             - recall_class_{i}: Recall for class i (i=0,1,2) (aka. accuracy)
             - f1_class_{i}: F1 score for class i (i=0,1,2)
+            - auroc_ovr_class_{i}: One-vs-Rest AUROC for class i (if y_proba provided)
+            - auroc_ovr_macro: Macro-average One-vs-Rest AUROC (if y_proba provided)
     """
 
     # Overall metrics
@@ -432,6 +437,31 @@ def compute_3class_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, 
         metrics[f'precision_class_{class_idx}'] = precision_per_class[class_idx]
         metrics[f'recall_class_{class_idx}'] = recall_per_class[class_idx]
         metrics[f'f1_class_{class_idx}'] = f1_per_class[class_idx]
+
+    # Compute One-vs-Rest AUROC if probabilities are provided
+    if y_proba is not None:
+        auroc_per_class = []
+        for class_idx in range(3):
+            # Create binary labels: 1 for current class, 0 for all others
+            y_true_binary = (y_true == class_idx).astype(int)
+            
+            # Get probabilities for current class
+            y_score = y_proba[:, class_idx]
+
+            # Only compute AUROC if both classes are present
+            if len(np.unique(y_true_binary)) > 1:
+                auroc = roc_auc_score(y_true_binary, y_score)
+                metrics[f'auroc_ovr_class_{class_idx}'] = auroc
+                auroc_per_class.append(auroc)
+            else:
+                # If only one class present, AUROC is undefined
+                metrics[f'auroc_ovr_class_{class_idx}'] = np.nan
+
+        # Compute macro-average AUROC (unweighted mean across classes)
+        if auroc_per_class:
+            metrics['auroc_ovr_macro'] = np.mean(auroc_per_class)
+        else:
+            metrics['auroc_ovr_macro'] = np.nan
 
     return metrics
 
