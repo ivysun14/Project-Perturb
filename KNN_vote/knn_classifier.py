@@ -8,7 +8,7 @@ Weighted KNN classifier for perturbation-gene pair prediction. Builds a 3-class 
 - Class 2: Down-regulated
 
 The classifier predicts the effect of a perturbation on a gene based on:
-- Distance: euclidean distance between perturbations represented by GenePT embeddings
+- Distance: euclidean distance between perturbations represented by GenePT + additional OpenAI text-embedding-3-large-generated embeddings
 - K nearest neighbors: K determined via 5-fold cross-validation
 - Weighted voting: weight = inverse distance
 
@@ -27,7 +27,7 @@ import pickle
 import numpy as np
 import pandas as pd
 from collections import defaultdict
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Union
 from sklearn.neighbors import NearestNeighbors, KNeighborsClassifier
 from sklearn.model_selection import KFold
 from sklearn.metrics import (accuracy_score,
@@ -94,6 +94,23 @@ def load_genePT_embedding(file_path: str) -> Dict[str, list]:
     return gene_embeddings_NCBI_UniProt
 
 
+def load_additional_embedding(file_path: str) -> Dict[str, list]:
+    """
+    Load in additional embeddings for genes (from generate_embeddings.py).
+
+    Args:
+        file_path: path to additional embeddings
+    
+    Returns:
+        Dictionary of {"gene": np.array[embedding]}
+    """
+
+    with open(file_path, "rb") as f:
+        additional_embeddings = pickle.load(f)
+    
+    return additional_embeddings
+
+
 def build_log2fc_and_label_matrix(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, Dict[str, int], Dict[str, int]]:
     """
     Build 1). a perturbation × gene matrix of log2FC values
@@ -143,13 +160,13 @@ def build_log2fc_and_label_matrix(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndar
 
 
 def build_embedding_matrix(pert_to_idx: Dict[str, int],
-                           embedding_dict: Dict[str, list]) -> np.ndarray:
+                           embedding_dict: Dict[str, Union[list, np.ndarray]]) -> np.ndarray:
     """
     Build an embedding matrix for perturbations provided.
 
     Args:
         pert_to_idx: Dict mapping perturbation name to row index in matrices
-        embedding_dict: Dictionary of perturbation gene name to their embedding in a list
+        embedding_dict: Dictionary of perturbation gene name to their embedding in a list or numpy array
 
     Returns:
         Numpy array of shape (n_perturbations, embed_dim)
@@ -164,11 +181,13 @@ def build_embedding_matrix(pert_to_idx: Dict[str, int],
         if pert not in pert_available:
             n_pert_unavail += 1
             print(f"    WARNING: Perturbation {pert} does not have pre-computed embedding from GenePT!")
-        embed_matrix[ind] = np.array(embedding_dict[pert], dtype=np.float64)
+            embed_matrix[ind] = np.zeros(embed_dim, dtype=np.float64)
+        else:
+            embed_matrix[ind] = np.asarray(embedding_dict[pert], dtype=np.float64)
 
-    # raise error if no matching embedding from GenePT
+    # raise error if no matching embedding from GenePT + additional embeddings supplied
     if n_pert_unavail > 0:
-        raise ValueError(f"\nIn total {n_pert_unavail} perturbations do not have matching embeddings from GenePT!")
+        raise ValueError(f"\nIn total {n_pert_unavail} perturbations do not have embeddings!")
 
     # Check for any missing entry in the embedding matrix
     n_missing_embedding = np.isnan(embed_matrix).sum()
@@ -215,7 +234,7 @@ def find_k_nearest_neighbors(query_pert_embeddings: np.ndarray,
         if use_k > 1:
             distance_diffs = np.diff(distances[i])
             if np.any(distance_diffs < 1e-10):  # Allow floating point tolerance
-                print(f"    \nDistances: {distances[i]}")
+                print(f"        Distances: {distances[i]}")
                 n_ties += 1
 
     if n_ties > 0:
@@ -271,7 +290,7 @@ def predict_with_precomputed_neighbors(target_gene_idx: int,
 
     if len(tied_classes) > 1:
         prediction = np.random.choice(tied_classes)
-        print(f"Vote tie: classes {tied_classes} tied with vote={max_vote:.4f}. Randomly choosing class {prediction}.")
+        print(f"    Vote tie: classes {tied_classes} tied with vote={max_vote:.4f}. Randomly choosing class {prediction}.")
     else:
         prediction = tied_classes[0]
 
@@ -466,6 +485,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Weighted KNN classifier for 3-class perturbation-gene prediction')
     parser.add_argument('--de_doc_file', type=str, required=True, help='Path to DE_DOC CSV file (must have split column)')
     parser.add_argument('--embedding_file', type=str, required=True, help='Path to GenePT embedding zip file')
+    parser.add_argument('--embedding_file2', type=str, required=True, help='Path to additional embedding other than GenePT')
     parser.add_argument('--dataset_name', type=str, required=True, help='Dataset name (for output files)')
     parser.add_argument('--k_values', type=str, default='1,3,5,7,9', help='Comma-separated K values to try (default: 1,3,5,7,9)')
     parser.add_argument('--n_folds', type=int, default=5, help='Number of folds for cross-validation (default: 5)')
@@ -501,6 +521,16 @@ if __name__ == "__main__":
         test_pert_subsample = test_pert[:args.subsample]
         train_df = train_df[train_df['pert'].isin(train_pert_subsample)]
         test_df = test_df[test_df['pert'].isin(test_pert_subsample)]
+    
+    # ======
+    # pert_wo_enbedding = ["AC118549.1", "ALG1L", "C12orf45", "C1orf109", "C7orf26", 
+    #                     "C9orf16", "CCDC130", "CCDC144NL", "DDN", "FRG2", "MBTPS1", 
+    #                     "PHB", "POLR2B", "SPATA5L1", "TDGF1", "WDR61", "WDR92", "ZNF720", 
+    #                     "FAM102B", "INTS2", "SPATA5"]
+    # print(f"\nWARNING: Deleting perturbations {pert_wo_enbedding} for now since do not have embeddings!")
+    # train_df = train_df[~train_df['pert'].isin(pert_wo_enbedding)]
+    # test_df = test_df[~test_df['pert'].isin(pert_wo_enbedding)]
+    # ======
 
     print("\nBuilding log2fc and label matrix from train data...")
     _, label_matrix, pert_to_idx, gene_to_idx = build_log2fc_and_label_matrix(train_df)
@@ -509,11 +539,13 @@ if __name__ == "__main__":
     print(f"    Label matrix shape: {label_matrix.shape} (perturbations × genes)")
 
     # Load perturbation embeddings
-    embedding_dict = load_genePT_embedding(args.embedding_file)
-    print(f"\nLoaded embeddings for {len(embedding_dict)} genes")
+    genePT_dict = load_genePT_embedding(args.embedding_file)
+    additional_dict = load_additional_embedding(args.embedding_file2)
+    print(f"\nLoaded embeddings for {len(genePT_dict)+len(additional_dict)} genes")
 
     # Build embedding matrix for training perturbations
     print("\nBuilding embedding matrix...")
+    embedding_dict = {**genePT_dict, **additional_dict}
     embedding_matrix = build_embedding_matrix(pert_to_idx, embedding_dict)
     print(f"Embedding matrix shape: {embedding_matrix.shape}")
 
