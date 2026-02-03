@@ -18,3 +18,7 @@ dependencies:
     - scipy
     - gseapy
     - mygene
+    - beautifulsoup4
+    - html2text
+    - openai
+    - python-dotenv

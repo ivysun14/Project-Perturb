@@ -3,3 +3,4 @@ error_analysis/
 logs/
 results/
 *.sh
+.env
