@@ -22,3 +22,5 @@ dependencies:
     - html2text
     - openai
     - python-dotenv
+    - torch_geometric
+    - cell-gears

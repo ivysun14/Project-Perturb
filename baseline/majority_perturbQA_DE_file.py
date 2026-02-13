@@ -151,7 +151,7 @@ if __name__ == "__main__":
 
         # Predict on test set
         print("Predicting on test set...")
-        y_pred = predict_from_gene_majority(test_df, gene_majority, default_pred=0)
+        y_pred, _ = predict_from_gene_majority(test_df, gene_majority, default_pred=0)
         y_true = test_df['label'].values
 
         # Compute metrics
