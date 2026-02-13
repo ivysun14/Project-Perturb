@@ -50,8 +50,12 @@ python -u majority_DE_DOC_file.py \
 #### 5. `analysis_utility.py`
 Utility functions for model training and DE/DOC label updating.
 
+- `resolve_repeats`: preprocessing function for an AnnData object. If there are repeatedly measured genes in an AnnData object take column-wise averages for such genes
 - `update_DE_DOC_labels`: update labels (0/1/2) for perturbation-gene pairs using updated alpha and log2FC thresholds
 - `filter_perturbqa_style`: filter out noisy perturbation-gene pairs based on workflow proposed in PerturbQA, accepts files outputted from `DE_DOC_stats.py` as input
+- `train_gene_majority_vote` and `predict_from_gene_majority`: gene-based majority vote baseline training and predicting functions
+- `compute_3class_metrics`: compute overall and per-class metrics for the 3-class classification problem
+- `plot_data_summary`: plotting function that plots train/test splits' class distributions and perturbation-gene pair information
 
 #### 6. `error_utility.py`
 Utility class for error analysis.

@@ -5,6 +5,7 @@ error_utility.py
 Helper class and functions for comprehensive error analysis for the majority vote baseline on PerturbQA.
 """
 
+import os
 import sys
 import numpy as np
 import pandas as pd
@@ -33,6 +34,8 @@ class ErrorAnalyzer:
             task_name: "DE" or "DOC"
             class_names: Optional list of class names for display (e.g., ['Non-DE', 'Up', 'Down'])
         """
+
+        os.makedirs("error_analysis", exist_ok=True)
 
         self.dataset = dataset
         self.test_keys = test_keys
