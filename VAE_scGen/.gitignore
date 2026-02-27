@@ -1,0 +1,5 @@
+*.h5ad
+*.pickle
+csv/
+log/
+results/
