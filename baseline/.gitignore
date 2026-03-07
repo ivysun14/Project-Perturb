@@ -1,7 +1,29 @@
-files/
-logs/
-PerturbQA/
-*.sh
+# data
 datasets/
+data/
+files/
+
+# logs
+logs/
+
+# perturbQA files
+PerturbQA/
+
+# execution files
+*.sh
+
+# experiments
+DE_full_relaxed_0.10_expr/
+DE_full_strict_0.01_expr/
+DE_PerturbQA_expr/
+majority_transfer_allGene_PerturbQA_expr/
+majority_transfer_overlapGene_PerturbQA_expr/
+
+# results folders
 error_analysis/
 figures/
+
+# currently unused scripts
+adamson_processing.py
+GO_analysis.py
+plot_CD4_TCell_stats.py

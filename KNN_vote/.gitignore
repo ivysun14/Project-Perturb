@@ -1,6 +1,26 @@
+# data
 data/
-error_analysis/
+
+# logs
 logs/
-results/
+
+# execution script
 *.sh
+
+# results
+error_analysis/
+results/
+
+# environmental variable
 .env
+
+# experiments
+KNN_allPert_expr/
+KNN_perturbQA_expr/
+KNN_transfer_allGene_expr/
+KNN_transfer_overlapGene_expr/
+
+# currently unsed scripts
+knn_classifier_perturbQA.py
+knn_classifier_transfer.py
+knn_graph.py
