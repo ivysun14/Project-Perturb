@@ -18,7 +18,19 @@ from typing import Dict, Tuple, List
 from collections import defaultdict
 from scipy.stats import ranksums
 from statsmodels.stats.multitest import multipletests
-from perturbqa import load_de, load_dir, auc_per_gene
+
+# Import perturbqa for data loading
+from perturbqa import load_de, load_dir
+from perturbqa import auc_per_gene as perturbqa_auc_per_gene
+
+# Use local evaluation module with extended metrics
+import sys
+sys.path.insert(0, '..')
+from perturbseq_lang.evaluation import (
+    auc_per_gene,
+    compute_perturbqa_metrics,
+    run_perturbqa_evaluation
+)
 
 
 def resolve_repeats(adata, gene_row="gene_name"):
@@ -293,58 +305,69 @@ def print_statistics_table(dataset_name: str, train_stats: Dict, test_stats: Dic
     print("="*80)
 
 
-def train_gene_majority_vote(train_keys: List[Tuple], labels: Dict) -> Dict:
+def train_gene_majority_vote(train_keys: List[Tuple], labels: Dict,
+                             return_proportion: bool = True) -> Dict:
     """
     Train gene-level majority vote predictor.
-    
+
+    Following PerturbQA protocol: "Retrieval takes the mean label over (p',g')"
+    This gives a probability-like score between 0 and 1 for proper AUROC computation.
+
     Args:
         train_keys: List of (perturbation, gene) tuples in training set
         labels: Dict mapping (pert, gene) -> label
-        
+        return_proportion: If True, return proportion (mean) of positive labels.
+                          If False, return binary majority class (0 or 1).
+
     Returns:
-        Dict mapping gene -> majority class
+        Dict mapping gene -> proportion (float 0-1) or majority class (0 or 1)
     """
-    
-    gene_stats = defaultdict(lambda: {'pos': 0, 'neg': 0})
-    
+
+    gene_stats = defaultdict(lambda: {'pos': 0, 'neg': 0, 'total': 0})
+
     for pert, gene in train_keys:
         key = (pert, gene)
         if key in labels:
             label = labels[key]
+            gene_stats[gene]['total'] += 1
             if label == 1:
                 gene_stats[gene]['pos'] += 1
             else:
                 gene_stats[gene]['neg'] += 1
-    
-    # Determine majority class per gene
-    gene_majority = {}
+
+    gene_scores = {}
     for gene, stats in gene_stats.items():
-        gene_majority[gene] = 1 if stats['pos'] >= stats['neg'] else 0
-    
-    return gene_majority
+        if return_proportion:
+            # Return proportion/percentage of positive labels (for AUROC)
+            gene_scores[gene] = stats['pos'] / stats['total'] if stats['total'] > 0 else 0.5
+        else:
+            # Return binary majority class
+            gene_scores[gene] = 1 if stats['pos'] >= stats['neg'] else 0
+
+    return gene_scores
 
 
-def predict_from_gene_majority(test_keys: List[Tuple], 
-                               gene_majority: Dict, 
+def predict_from_gene_majority(test_keys: List[Tuple],
+                               gene_scores: Dict,
                                default_pred: float = 0.5) -> np.ndarray:
     """
-    Generate predictions based on gene-level majority vote.
-    
+    Generate predictions based on gene-level scores (proportion or majority).
+
     Args:
         test_keys: List of (perturbation, gene) tuples in test set
-        gene_majority: Dict mapping gene -> majority class
+        gene_scores: Dict mapping gene -> score (proportion or binary)
         default_pred: Default prediction for unseen genes
-        
+
     Returns:
-        Array of predictions
+        Array of predictions (floats between 0 and 1)
     """
     predictions = []
     for pert, gene in test_keys:
-        if gene in gene_majority:
-            predictions.append(float(gene_majority[gene]))
+        if gene in gene_scores:
+            predictions.append(float(gene_scores[gene]))
         else:
             predictions.append(default_pred)
-    
+
     return np.array(predictions)
 
 
@@ -404,17 +427,21 @@ def evaluate_majority_vote_baseline(
 
     results = {
         'de_aurocs': [],
-        'doc_aurocs': []
+        'doc_aurocs': [],
+        'de_aurocs_perturbqa': [],  # For comparison with perturbqa implementation
+        'doc_aurocs_perturbqa': [],
+        'de_metrics': [],  # Full metrics from local implementation
+        'doc_metrics': []
     }
-    
+
     # Run multiple times with subsampling
     for run in range(n_runs):
-        
+
         print(f"\nRun {run + 1}/{n_runs}")
-        
+
         # Subsample training data (80% of train_de_keys)
         np.random.seed(run)
-        
+
         n_de_train = int(len(train_de_keys) * 0.8)
         train_de_subsample = np.random.choice(len(train_de_keys), n_de_train, replace=False)
         train_de_keys_sub = [train_de_keys[i] for i in train_de_subsample]
@@ -422,54 +449,105 @@ def evaluate_majority_vote_baseline(
         n_dir_train = int(len(train_dir_keys) * 0.8)
         train_dir_subsample = np.random.choice(len(train_dir_keys), n_dir_train, replace=False)
         train_dir_keys_sub = [train_dir_keys[i] for i in train_dir_subsample]
-        
-        # Train gene-level majority vote for DE
+
+        # Train gene-level majority vote for DE (using proportions for AUROC)
         print("  Training DE predictor...")
-        gene_majority_de = train_gene_majority_vote(train_de_keys_sub, de_labels)
-        
-        # Train gene-level majority vote for DOC
+        gene_proportion_de = train_gene_majority_vote(train_de_keys_sub, de_labels, return_proportion=True)
+
+        # Train gene-level majority vote for DOC (using proportions for AUROC)
         print("  Training DOC predictor...")
-        gene_majority_doc = train_gene_majority_vote(train_dir_keys_sub, doc_labels)
-        
-        # Predict on test set
-        print("  Predicting on test set...")
-        pred_de = predict_from_gene_majority(test_de_keys, gene_majority_de)
-        pred_doc = predict_from_gene_majority(test_dir_keys, gene_majority_doc)
-        
+        gene_proportion_doc = train_gene_majority_vote(train_dir_keys_sub, doc_labels, return_proportion=True)
+
+        # Predict on test set using PROPORTIONS (proper for AUROC)
+        print("  Predicting on test set (using proportions)...")
+        pred_de = predict_from_gene_majority(test_de_keys, gene_proportion_de)
+        pred_doc = predict_from_gene_majority(test_dir_keys, gene_proportion_doc)
+
         # Get true labels for test set
         true_de = np.array([de_labels.get(key, 0) for key in test_de_keys])
         true_doc = np.array([doc_labels.get(key, 0) for key in test_dir_keys])
-        
-        # Calculate AUROC per gene
-        print("  Calculating AUROC...")
-        auroc_de = auc_per_gene(test_de_keys, pred_de, true_de)
-        auroc_doc = auc_per_gene(test_dir_keys, pred_doc, true_doc)
-        
-        print(f"  DE AUROC: {auroc_de:.4f}")
-        print(f"  DOC AUROC: {auroc_doc:.4f}")
-        
+
+        # Calculate AUROC using local implementation (with extended metrics)
+        print("  Calculating metrics (local implementation)...")
+        de_metrics = compute_perturbqa_metrics(test_de_keys, pred_de, true_de)
+        doc_metrics = compute_perturbqa_metrics(test_dir_keys, pred_doc, true_doc)
+
+        auroc_de = de_metrics['auroc_per_gene']
+        auroc_doc = doc_metrics['auroc_per_gene']
+
+        # Also calculate using perturbqa implementation for comparison
+        auroc_de_pqa = perturbqa_auc_per_gene(test_de_keys, pred_de, true_de)
+        auroc_doc_pqa = perturbqa_auc_per_gene(test_dir_keys, pred_doc, true_doc)
+
+        print(f"  DE AUROC (local):     {auroc_de:.4f}")
+        print(f"  DE AUROC (perturbqa): {auroc_de_pqa:.4f}")
+        print(f"  DOC AUROC (local):     {auroc_doc:.4f}")
+        print(f"  DOC AUROC (perturbqa): {auroc_doc_pqa:.4f}")
+
+        # Show additional metrics
+        print(f"  DE Accuracy:   {de_metrics['accuracy']:.4f}  |  DOC Accuracy:   {doc_metrics['accuracy']:.4f}")
+        print(f"  DE F1:         {de_metrics['f1']:.4f}  |  DOC F1:         {doc_metrics['f1']:.4f}")
+        print(f"  DE Precision:  {de_metrics['precision']:.4f}  |  DOC Precision:  {doc_metrics['precision']:.4f}")
+        print(f"  DE Recall:     {de_metrics['recall']:.4f}  |  DOC Recall:     {doc_metrics['recall']:.4f}")
+
         results['de_aurocs'].append(auroc_de)
         results['doc_aurocs'].append(auroc_doc)
-    
+        results['de_aurocs_perturbqa'].append(auroc_de_pqa)
+        results['doc_aurocs_perturbqa'].append(auroc_doc_pqa)
+        results['de_metrics'].append(de_metrics)
+        results['doc_metrics'].append(doc_metrics)
+
     # Calculate mean and std
     de_mean = np.mean(results['de_aurocs'])
     de_std = np.std(results['de_aurocs'])
     doc_mean = np.mean(results['doc_aurocs'])
     doc_std = np.std(results['doc_aurocs'])
-    
-    print("\n" + "="*50)
+
+    de_mean_pqa = np.mean(results['de_aurocs_perturbqa'])
+    de_std_pqa = np.std(results['de_aurocs_perturbqa'])
+    doc_mean_pqa = np.mean(results['doc_aurocs_perturbqa'])
+    doc_std_pqa = np.std(results['doc_aurocs_perturbqa'])
+
+    # Aggregate other metrics
+    de_acc_mean = np.mean([m['accuracy'] for m in results['de_metrics']])
+    de_f1_mean = np.mean([m['f1'] for m in results['de_metrics']])
+    doc_acc_mean = np.mean([m['accuracy'] for m in results['doc_metrics']])
+    doc_f1_mean = np.mean([m['f1'] for m in results['doc_metrics']])
+
+    print("\n" + "="*70)
     print("FINAL RESULTS")
-    print("="*50)
-    print(f"MAJORITY VOTE (DE):  {de_mean:.2f}±{de_std:.2f}")
-    print(f"MAJORITY VOTE (DOC): {doc_mean:.2f}±{doc_std:.2f}")
-    
+    print("="*70)
+    print(f"{'Metric':<30} {'DE':>18} {'DOC':>18}")
+    print("-"*70)
+    print(f"{'AUROC (local, per-gene)':<30} {de_mean:.4f}±{de_std:.4f}   {doc_mean:.4f}±{doc_std:.4f}")
+    print(f"{'AUROC (perturbqa, per-gene)':<30} {de_mean_pqa:.4f}±{de_std_pqa:.4f}   {doc_mean_pqa:.4f}±{doc_std_pqa:.4f}")
+    print(f"{'Accuracy':<30} {de_acc_mean:.4f}            {doc_acc_mean:.4f}")
+    print(f"{'F1 Score':<30} {de_f1_mean:.4f}            {doc_f1_mean:.4f}")
+    print("="*70)
+
+    # Check if implementations match
+    if abs(de_mean - de_mean_pqa) > 0.001 or abs(doc_mean - doc_mean_pqa) > 0.001:
+        print("\n⚠️  WARNING: Local and PerturbQA AUROC implementations differ!")
+        print(f"   DE difference:  {abs(de_mean - de_mean_pqa):.6f}")
+        print(f"   DOC difference: {abs(doc_mean - doc_mean_pqa):.6f}")
+    else:
+        print("\n✓ Local and PerturbQA AUROC implementations match.")
+
     return {
         'de_mean': de_mean,
         'de_std': de_std,
         'doc_mean': doc_mean,
         'doc_std': doc_std,
         'de_aurocs': results['de_aurocs'],
-        'doc_aurocs': results['doc_aurocs']
+        'doc_aurocs': results['doc_aurocs'],
+        'de_aurocs_perturbqa': results['de_aurocs_perturbqa'],
+        'doc_aurocs_perturbqa': results['doc_aurocs_perturbqa'],
+        'de_metrics': results['de_metrics'],
+        'doc_metrics': results['doc_metrics'],
+        'de_accuracy': de_acc_mean,
+        'doc_accuracy': doc_acc_mean,
+        'de_f1': de_f1_mean,
+        'doc_f1': doc_f1_mean
     }
 
 

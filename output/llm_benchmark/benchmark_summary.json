@@ -1,0 +1,56 @@
+[
+  {
+    "accuracy": 0.9,
+    "per_class": {
+      "down": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 0
+      },
+      "not_de": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 0
+      },
+      "up": {
+        "precision": 1.0,
+        "recall": 0.9,
+        "f1": 0.9473684210526315,
+        "support": 60
+      }
+    },
+    "macro_avg": {
+      "precision": 0.3333333333333333,
+      "recall": 0.3,
+      "f1": 0.3157894736842105
+    },
+    "weighted_avg": {
+      "precision": 1.0,
+      "recall": 0.9,
+      "f1": 0.9473684210526315
+    },
+    "confusion_matrix": {
+      "down": {
+        "down": 0,
+        "not_de": 0,
+        "up": 0
+      },
+      "not_de": {
+        "down": 0,
+        "not_de": 0,
+        "up": 0
+      },
+      "up": {
+        "down": 0,
+        "not_de": 6,
+        "up": 54
+      }
+    },
+    "model": "claude-sonnet-4.5",
+    "n_samples": 3,
+    "prompt_style": "fewshot",
+    "n_shots": 860
+  }
+]

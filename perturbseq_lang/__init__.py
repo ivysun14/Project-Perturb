@@ -20,6 +20,24 @@ from .evaluation import (
     evaluate_category_predictions,
     evaluate_set_predictions,
     extract_json_from_output,
+    # PerturbQA-style metrics
+    auc_per_gene,
+    auc_per_perturbation,
+    auprc_per_gene,
+    compute_binary_metrics,
+    compute_perturbqa_metrics,
+    evaluate_de_task,
+    evaluate_doc_task,
+    run_perturbqa_evaluation,
+    print_perturbqa_summary,
+    # SynthPert-style 3-class metrics
+    evaluate_three_class,
+    evaluate_three_class_from_de_doc,
+    print_three_class_report,
+    # Cross-cell-type evaluation
+    build_gene_proportions,
+    cross_cell_type_evaluation,
+    run_cross_cell_type_benchmark,
 )
 from .utils import (
     clean_perturbation_condition,

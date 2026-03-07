@@ -1,0 +1,55 @@
+{
+  "dataset": "hepg2",
+  "n_train": 13809005,
+  "n_test": 4619040,
+  "accuracy": 0.9600966867574214,
+  "macro_f1": 0.3265473903214114,
+  "macro_precision": 0.32003222891914046,
+  "macro_recall": 0.3333333333333333,
+  "per_class": {
+    "up": {
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0
+    },
+    "down": {
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0
+    },
+    "not_de": {
+      "f1": 0.9796421709642342,
+      "precision": 0.9600966867574214,
+      "recall": 1.0
+    }
+  },
+  "logfc_mae": 0.052549180412832776,
+  "logfc_nmae": 0.6026650223403276,
+  "confusion_matrix": [
+    [
+      0,
+      0,
+      76257
+    ],
+    [
+      0,
+      0,
+      108058
+    ],
+    [
+      0,
+      0,
+      4434725
+    ]
+  ],
+  "train_class_dist": {
+    "not_de": 13350589,
+    "down": 264082,
+    "up": 194334
+  },
+  "test_class_dist": {
+    "not_de": 4434725,
+    "up": 76257,
+    "down": 108058
+  }
+}

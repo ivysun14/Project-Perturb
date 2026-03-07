@@ -1,0 +1,55 @@
+{
+  "dataset": "tcell_rest",
+  "n_train": 67031080,
+  "n_test": 22301621,
+  "accuracy": 0.9946287312478317,
+  "macro_f1": 0.33243571118975307,
+  "macro_precision": 0.3315429104159439,
+  "macro_recall": 0.3333333333333333,
+  "per_class": {
+    "up": {
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0
+    },
+    "down": {
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0
+    },
+    "not_de": {
+      "f1": 0.9973071335692593,
+      "precision": 0.9946287312478317,
+      "recall": 1.0
+    }
+  },
+  "logfc_mae": 0.18408565752718356,
+  "logfc_nmae": 0.5738355034226542,
+  "confusion_matrix": [
+    [
+      0,
+      0,
+      74465
+    ],
+    [
+      0,
+      0,
+      45323
+    ],
+    [
+      0,
+      0,
+      22181833
+    ]
+  ],
+  "train_class_dist": {
+    "not_de": 66673173,
+    "up": 222193,
+    "down": 135714
+  },
+  "test_class_dist": {
+    "not_de": 22181833,
+    "down": 45323,
+    "up": 74465
+  }
+}
