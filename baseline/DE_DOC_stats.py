@@ -19,6 +19,8 @@ Output CSV format:
 - log2FC: log based 2 fold change for better interpretability
 """
 
+import os, tempfile
+from zipfile import ZipFile, ZIP_DEFLATED
 import numpy as np
 import pandas as pd
 import anndata as ad
@@ -146,17 +148,14 @@ def compute_de_statistics(
                     'log2FC': log2_fc
                 })
 
-    # Create DataFrame
     df = pd.DataFrame(results)
 
-    # Summary statistics
     print(f"\nDE computation complete!")
     print(f"Total perturbation-gene pairs: {len(df)}")
     print(f"Non-DE (label=0): {(df['label'] == 0).sum()}")
     print(f"Up-regulated (label=1): {(df['label'] == 1).sum()}")
     print(f"Down-regulated (label=2): {(df['label'] == 2).sum()}")
 
-    # Save to CSV if path provided
     if save_path:
         df.to_csv(save_path, index=False)
         print(f"\nDE results saved to {save_path}")
@@ -176,19 +175,25 @@ if __name__ == "__main__":
     parser.add_argument('--log2fc_threshold', type=float, default=0.25, help='Minimum absolute log2 fold change threshold (default: 0.25)')
 
     args = parser.parse_args()
-
-    # Load AnnData and conduct pre-processing
     print(f"Loading AnnData from {args.adata}...")
+
+    # Use this only when processing Replogle K562-essential data
+    # zip_path = args.adata
+    # with ZipFile(zip_path) as zf, tempfile.TemporaryDirectory() as tmp:
+    #     name = [n for n in zf.namelist() if n.lower().endswith(".h5ad")][0]
+    #     h5ad_path = zf.extract(name, path=tmp)
+    #     adata = ad.read_h5ad(h5ad_path)
+    
     adata = ad.read_h5ad(args.adata)
     print(f"Loaded: {adata.shape[0]} cells x {adata.shape[1]} genes")
     adata.obs.rename(columns={"gene": "target_gene"}, inplace=True)
     adata = resolve_repeats(adata, gene_row="gene_name")
     
     # Use this only when processing hESC dataset
-    #if args.gene_row not in adata.var.columns:
-    #    # Create gene_name column in var if it doesn't exist
-    #    print(f"Creating '{args.gene_row}' column in adata.var from index...")
-    #    adata.var[args.gene_row] = adata.var.index
+    # if args.gene_row not in adata.var.columns:
+    #     # Create gene_name column in var if it doesn't exist
+    #     print(f"Creating '{args.gene_row}' column in adata.var from index...")
+    #     adata.var[args.gene_row] = adata.var.index
 
     sc.pp.normalize_total(adata, target_sum=1e4, key_added="size_factors")
     sc.pp.log1p(adata)
