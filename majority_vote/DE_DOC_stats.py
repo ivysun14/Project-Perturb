@@ -65,25 +65,16 @@ def compute_de_statistics(
     Returns:
         DataFrame with columns: pert, gene, label, p_value, logFC, log2FC
     """
-
     results = []
-
-    # Get control cells expression
     control_mask = (adata.obs[target_col] == control_key).values
     control_expr = adata.X[control_mask]
-
-    # Get unique perturbations
     perturbations = [p for p in adata.obs[target_col].unique() if p != control_key]
-
     print(f"\nComputing DE statistics for {len(perturbations)} perturbations across {adata.n_vars} genes...")
     print(f"Parameters: alpha={alpha}, log2FC_threshold={log2fc_threshold}")
 
-    # Process each perturbation
     for pert_idx, pert in enumerate(perturbations):
-
         if (pert_idx + 1) % 10 == 0:
             print(f"  Processing perturbation {pert_idx + 1}/{len(perturbations)}")
-
         pert_mask = (adata.obs[target_col] == pert).values
         pert_expr = adata.X[pert_mask]
 
@@ -92,11 +83,10 @@ def compute_de_statistics(
         logfcs = []
         log2fcs = []
         gene_names = []
-
         for gene_idx, gene_name in enumerate(adata.var[gene_row]):
             control_vals = control_expr[:, gene_idx]
             pert_vals = pert_expr[:, gene_idx]
-
+            
             # Calculate logFC (mean difference)
             # NOTE: Assume data is natural log-transformed, so this is log fold change
             control_mean = np.mean(control_vals)
@@ -121,14 +111,11 @@ def compute_de_statistics(
         # Apply BH correction for this perturbation
         if len(pvalues) > 0:
             reject, pvals_corrected, _, _ = multipletests(pvalues, alpha=alpha, method='fdr_bh')
-
-            # Determine DE labels with both p-value and log2FC thresholds
             for gene_name, is_significant, pval_corrected, logfc, log2_fc in zip(
                 gene_names, reject, pvals_corrected, logfcs, log2fcs
             ):
                 passes_pval = is_significant  # p_value < alpha after BH correction
                 passes_log2fc = abs(log2_fc) >= log2fc_threshold
-
                 if passes_pval and passes_log2fc:
                     # DE gene: determine direction
                     if log2_fc > 0:
@@ -138,7 +125,6 @@ def compute_de_statistics(
                 else:
                     # Non-DE gene
                     label = 0
-
                 results.append({
                     'pert': pert,
                     'gene': gene_name,

@@ -1,6 +1,19 @@
 """
-majority_transfer.py
-=====================
+majority_perturbQA_DE_file.py
+=============================
+
+Majority-vote baseline (per gene) for perturbation–gene pairs, from pre-computed PerturbQA DE stats files.
+
+This script builds a 3-class classifier:
+- Class 0: Non-DE (from DE file where label=0)
+- Class 1: Up-regulated (from DOC file where label=1)
+- Class 2: Down-regulated (from DOC file where label=0)
+
+Assumption: DOC file only contains perturbation-gene pairs that are DE (label=1 in DE file).
+
+Input CSV columns:
+- DE file: pert, gene, label, split
+- DOC file: pert, gene, label, split
 """
 
 import os
@@ -40,7 +53,6 @@ def load_and_merge_de_doc(de_path: str, doc_path: str) -> pd.DataFrame:
     print(f"Loaded DE file: {len(de_df)} pairs")
     print(f"Loaded DOC file: {len(doc_df)} pairs")
 
-    # Create a mapping from (pert, gene) to DOC label
     doc_dict = {}
     for _, row in doc_df.iterrows():
         key = (row['pert'], row['gene'])
@@ -85,43 +97,31 @@ def load_and_merge_de_doc(de_path: str, doc_path: str) -> pd.DataFrame:
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Gene-based majority vote baseline for 3-class DE prediction')
-    parser.add_argument('--de_file_train', type=str, required=True, help='Path to DE CSV file (training)')
-    parser.add_argument('--doc_file_train', type=str, required=True, help='Path to DOC CSV file (training)')
-    parser.add_argument('--de_file_test', type=str, required=True, help='Path to DE CSV file (testing)')
-    parser.add_argument('--doc_file_test', type=str, required=True, help='Path to DOC CSV file (testing)')
-    parser.add_argument('--dataset_name_train', type=str, required=True, help='Train dataset name (for output files)')
-    parser.add_argument('--dataset_name_test', type=str, required=True, help='Test dataset name (for output files)')
+    parser.add_argument('--de_file', type=str, required=True, help='Path to DE CSV file')
+    parser.add_argument('--doc_file', type=str, required=True, help='Path to DOC CSV file')
+    parser.add_argument('--dataset_name', type=str, required=True, help='Dataset name (for output files)')
     parser.add_argument('--n_runs', type=int, default=3, help='Number of runs with different train subsampling (default: 3)')
     parser.add_argument('--train_fraction', type=float, default=0.8, help='Fraction of training data to use in each run (default: 0.8)')
 
     args = parser.parse_args()
 
-    # Create error_analysis directory if it doesn't exist
     os.makedirs('error_analysis', exist_ok=True)
 
     print("="*70)
-    print("3-Class Gene-Based Majority Vote Baseline - Transferability Experiment")
+    print("3-Class Gene-Based Majority Vote Baseline")
     print("="*70)
 
-    # Load and merge data
     print("\nLoading data...")
-    merged_df_train = load_and_merge_de_doc(args.de_file_train, args.doc_file_train)
-    merged_df_test = load_and_merge_de_doc(args.de_file_test, args.doc_file_test)
-
-    # Split into train and test
-    train_df = merged_df_train[merged_df_train['split'] == 'train'].reset_index(drop=True)
-    test_df = merged_df_test[merged_df_test['split'] == 'test'].reset_index(drop=True)
-
+    merged_df = load_and_merge_de_doc(args.de_file, args.doc_file)
+    train_df = merged_df[merged_df['split'] == 'train'].reset_index(drop=True)
+    test_df = merged_df[merged_df['split'] == 'test'].reset_index(drop=True)
     print(f"\nTrain set size: {len(train_df)}")
     print(f"Test set size: {len(test_df)}")
 
-    # Plot data summary
-    plot_data_summary(train_df, test_df, args.dataset_name_train + "_to_" + args.dataset_name_test)
-
-    # Store results from multiple runs
-    all_metrics = defaultdict(list)
+    plot_data_summary(train_df, test_df, args.dataset_name)
 
     # Run multiple times with different train subsampling
+    all_metrics = defaultdict(list)
     for run in range(args.n_runs):
         print(f"\n{'='*70}")
         print(f"Run {run + 1}/{args.n_runs}")
@@ -132,27 +132,17 @@ if __name__ == "__main__":
         n_train = int(len(train_df) * args.train_fraction)
         train_indices = np.random.choice(len(train_df), n_train, replace=False)
         train_subsample = train_df.iloc[train_indices]
-
         print(f"Training on {len(train_subsample)} samples ({args.train_fraction*100:.0f}% of train set)")
 
-        # Train gene-level majority vote
         print("Training gene-level majority vote...")
         gene_majority = train_gene_majority_vote(train_subsample, random_seed=run)
         print(f"Learned majority class for {len(gene_majority)} genes")
 
-        # Predict on test set
         print("Predicting on test set...")
         y_pred, _ = predict_from_gene_majority(test_df, gene_majority, default_pred=0)
-        #y_pred_seen = y_pred[~unseen_mask]
-        
         y_true = test_df['label'].values
-        #y_true_seen = y_true[~unseen_mask]
 
-        # Compute metrics
-        #metrics = compute_3class_metrics(y_true_seen, y_pred_seen)
         metrics = compute_3class_metrics(y_true, y_pred)
-
-        # Store metrics
         for key, value in metrics.items():
             all_metrics[key].append(value)
 
@@ -215,10 +205,8 @@ if __name__ == "__main__":
 
     # Create test_keys as list of (pert, gene) tuples
     test_keys = list(zip(test_df['pert'], test_df['gene']))
-    #test_keys_seen = [k for k, is_unseen in zip(test_keys, unseen_mask) if not is_unseen]
-
-    analyzer, error_results = run_error_analysis_from_results(
-        dataset=args.dataset_name_train + "_to_" + args.dataset_name_test,
+    run_error_analysis_from_results(
+        dataset=args.dataset_name,
         test_keys=test_keys,
         predictions=y_pred,
         true_labels=y_true,

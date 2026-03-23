@@ -18,7 +18,6 @@ from analysis_utility import update_DE_DOC_labels
 def split_train_test(df: pd.DataFrame, file_path: str, test_size: float = 0.25, random_state: int = 305) -> pd.DataFrame:
     """
     Split by perturbations while maintaining balanced label proportions in train/test.
-
     Uses stratified sampling based on each perturbation's dominant label class
     to ensure train and test sets have roughly equal proportions of labels (0, 1, 2).
 
@@ -68,7 +67,6 @@ def split_train_test(df: pd.DataFrame, file_path: str, test_size: float = 0.25, 
     # Perform stratified split on perturbations
     perturbations = pert_dominant_label.index.values
     strata = pert_dominant_label.values
-
     train_perts, test_perts = train_test_split(
         perturbations,
         test_size=test_size,
@@ -76,13 +74,9 @@ def split_train_test(df: pd.DataFrame, file_path: str, test_size: float = 0.25, 
         stratify=strata
     )
 
-    # Add split column
     df['split'] = df['pert'].apply(lambda x: 'train' if x in set(train_perts) else 'test')
-
-    # Print split statistics
     train_df = df[df['split'] == 'train']
     test_df = df[df['split'] == 'test']
-
     print(f"\nSplit statistics:")
     print(f"  Train perturbations: {len(train_perts)}, Test perturbations: {len(test_perts)}")
     print(f"  Train pairs: {len(train_df)}, Test pairs: {len(test_df)}")
@@ -99,10 +93,8 @@ def split_train_test(df: pd.DataFrame, file_path: str, test_size: float = 0.25, 
         pct = 100 * count / len(test_df)
         print(f"  Label {label}: {count} ({pct:.1f}%)")
 
-    # Save to CSV
     df.to_csv(file_path, index=False)
     print(f"\nSaved to {file_path}")
-
     return df
 
 if __name__ == "__main__":

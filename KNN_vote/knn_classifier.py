@@ -1,16 +1,23 @@
 """
 knn_classifier.py
 =================
-
 Weighted KNN classifier for perturbation-gene pair prediction. Builds a 3-class KNN classifier:
 - Class 0: Non-DE
 - Class 1: Up-regulated
 - Class 2: Down-regulated
 
-The classifier predicts the effect of a perturbation on a gene based on:
-- Distance: euclidean distance between perturbations represented by GenePT + additional OpenAI text-embedding-3-large-generated embeddings
-- K nearest neighbors: K determined via 5-fold cross-validation
-- Weighted voting: weight = inverse distance
+Embedding-based (GenePT, ESM2):
+  - Distance metric: cosine dissimilarity (1 - cos)
+  - Neighbors: found at run time via sklearn NearestNeighbors
+  - Voting weight ('distance'): cosine similarity (1 - cosine dissimilarity)
+
+Co-pathway (co-path):
+  - No embedding; neighbors are pre-computed from Jaccard similarity on
+    shared MSigDB/KEGG/Reactome pathway memberships (see precompute_pathways.py)
+  - Input: gene_copath_neighbors.json  {gene: [[neighbor, jaccard_sim], ...]}
+  - Voting weight ('distance'): Jaccard similarity used directly as vote weight
+
+For both modes, 'uniform' weighting gives every neighbor an equal vote.
 
 Input CSV format (from DE_DOC_stats.py):
 - pert: perturbation name
@@ -22,26 +29,26 @@ Input CSV format (from DE_DOC_stats.py):
 import os
 import sys
 import argparse
-import zipfile
-import pickle
+import warnings
 import numpy as np
 import pandas as pd
 from collections import defaultdict
-from typing import Dict, List, Tuple, Optional, Union
-from sklearn.neighbors import NearestNeighbors, KNeighborsClassifier
+from typing import Dict, List, Tuple, Optional
 from sklearn.model_selection import KFold
-from sklearn.metrics import (accuracy_score,
-                             balanced_accuracy_score,
-                             precision_score,
-                             recall_score,
-                             f1_score,
-                             roc_auc_score,
-                             classification_report)
+from sklearn.metrics import classification_report
 
-# Add parent directory to path for importing utilities
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from baseline.analysis_utility import compute_3class_metrics, plot_data_summary
 from baseline.error_utility import run_error_analysis_from_results
+from analysis_utility import (
+    PERTS_NO_ESM2_EMBEDDING,
+    PERTS_NO_COPATH_NEIGHBORS,
+    load_embedding_from_pkl,
+    load_copath_neighbors,
+    build_embedding_matrix,
+    find_k_nearest_neighbors,
+    run_bootstrap,
+)
 
 
 def load_de_doc_file(file_path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -54,7 +61,6 @@ def load_de_doc_file(file_path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     Returns:
         Tuple of (train_df, test_df)
     """
-
     df = pd.read_csv(file_path)
 
     print(f"\nLoaded DE+DOC file: {len(df)} perturbation-gene pairs")
@@ -75,42 +81,6 @@ def load_de_doc_file(file_path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     return train_df, test_df
 
 
-def load_genePT_embedding(file_path: str) -> Dict[str, list]:
-    """
-    Load in zipped GenePT embeddings for genes.
-
-    Args:
-        file_path: path to zipped GenePT outputs
-    
-    Returns:
-        Dictionary of {"gene": [embedding]}
-    """
-
-    with zipfile.ZipFile(file_path, 'r') as zip_ref:
-        pickle_path = f'GenePT_emebdding_v2/GenePT_gene_protein_embedding_model_3_text.pickle.'
-        with zip_ref.open(pickle_path) as f:
-            gene_embeddings_NCBI_UniProt = pickle.load(f)
-    
-    return gene_embeddings_NCBI_UniProt
-
-
-def load_additional_embedding(file_path: str) -> Dict[str, list]:
-    """
-    Load in additional embeddings for genes (from generate_embeddings.py).
-
-    Args:
-        file_path: path to additional embeddings
-    
-    Returns:
-        Dictionary of {"gene": np.array[embedding]}
-    """
-
-    with open(file_path, "rb") as f:
-        additional_embeddings = pickle.load(f)
-    
-    return additional_embeddings
-
-
 def build_log2fc_and_label_matrix(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, Dict[str, int], Dict[str, int]]:
     """
     Build 1). a perturbation × gene matrix of log2FC values
@@ -127,11 +97,8 @@ def build_log2fc_and_label_matrix(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndar
         pert_to_idx: dict mapping perturbation name to row index
         gene_to_idx: dict mapping gene name to column index
     """
-    # Get unique perturbations and genes
     perturbations = sorted(df['pert'].unique())
     genes = sorted(df['gene'].unique())
-
-    # Create mapping for perturbations and genes
     pert_to_idx = {p: i for i, p in enumerate(perturbations)}
     gene_to_idx = {g: i for i, g in enumerate(genes)}
 
@@ -146,101 +113,21 @@ def build_log2fc_and_label_matrix(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndar
         log2fc_matrix[pert_idx, gene_idx] = row['log2FC']
         label_matrix[pert_idx, gene_idx] = row['label']
 
-    # Check for missing values
     n_missing_log2fc = np.isnan(log2fc_matrix).sum()
     n_missing_label = np.isnan(label_matrix).sum()
     if n_missing_log2fc > 0:
-        print(f"    WARNING: {n_missing_log2fc} missing values in log2FC matrix "
-              f"    ({100*n_missing_log2fc/(n_perts*n_genes):.2f}%)")
+        warnings.warn(
+            f"{n_missing_log2fc} missing values in log2FC matrix "
+            f"({100*n_missing_log2fc/(n_perts*n_genes):.2f}%)"
+        )
     if n_missing_label > 0:
-        print(f"    WARNING: {n_missing_label} missing values in label matrix "
-              f"    ({100*n_missing_label/(n_perts*n_genes):.2f}%)")
+        warnings.warn(
+            f"{n_missing_label} missing values in label matrix "
+            f"({100*n_missing_label/(n_perts*n_genes):.2f}%)"
+        )
 
     return log2fc_matrix, label_matrix, pert_to_idx, gene_to_idx
 
-
-def build_embedding_matrix(pert_to_idx: Dict[str, int],
-                           embedding_dict: Dict[str, Union[list, np.ndarray]]) -> np.ndarray:
-    """
-    Build an embedding matrix for perturbations provided.
-
-    Args:
-        pert_to_idx: Dict mapping perturbation name to row index in matrices
-        embedding_dict: Dictionary of perturbation gene name to their embedding in a list or numpy array
-
-    Returns:
-        Numpy array of shape (n_perturbations, embed_dim)
-    """
-    n_pert = len(pert_to_idx)
-    embed_dim = len(next(iter(embedding_dict.values())))
-    embed_matrix = np.full((n_pert, embed_dim), np.nan, dtype=np.float64)
-    pert_available = embedding_dict.keys()
-    n_pert_unavail = 0
-
-    for pert, ind in pert_to_idx.items():
-        if pert not in pert_available:
-            n_pert_unavail += 1
-            print(f"    WARNING: Perturbation {pert} does not have pre-computed embedding from GenePT!")
-            embed_matrix[ind] = np.zeros(embed_dim, dtype=np.float64)
-        else:
-            embed_matrix[ind] = np.asarray(embedding_dict[pert], dtype=np.float64)
-
-    # raise error if no matching embedding from GenePT + additional embeddings supplied
-    if n_pert_unavail > 0:
-        raise ValueError(f"\nIn total {n_pert_unavail} perturbations do not have embeddings!")
-
-    # Check for any missing entry in the embedding matrix
-    n_missing_embedding = np.isnan(embed_matrix).sum()
-    if n_missing_embedding > 0:
-        print(f"    WARNING: {n_missing_embedding} missing values in embedding matrix "
-              f"    ({100*n_missing_embedding/(n_pert*embed_dim):.2f}%)")
-
-    return embed_matrix
-
-
-def find_k_nearest_neighbors(query_pert_embeddings: np.ndarray,
-                             train_pert_embeddings: np.ndarray,
-                             k: int) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Find K nearest neighbors for query perturbations based on embeddings.
-
-    Args:
-        query_pert_embeddings: Query perturbation embeddings (n_query, embed_dim)
-        train_pert_embeddings: Training perturbation embeddings (n_train, embed_dim)
-        k: Number of neighbors
-
-    Returns:
-        distances: Array of shape (n_query, k) with distances to neighbors
-        indices: Array of shape (n_query, k) with indices of neighbors in train set
-    """
-    # Make sure enough training perturbations to find k neighbors
-    uniq_pert = train_pert_embeddings.shape[0]
-    use_k = k
-    if k > uniq_pert:
-        use_k = uniq_pert
-        print(f"    WARNING: Only {uniq_pert} training perturbations, reduce k down to {use_k}")
-
-    # Fit k nearest neighbors model on training data
-    nbrs = NearestNeighbors(n_neighbors=use_k, algorithm='auto', metric='euclidean')
-    nbrs.fit(train_pert_embeddings)
-
-    # Find k-nearest neighbors for all queries at once
-    distances, indices = nbrs.kneighbors(query_pert_embeddings)
-
-    # For each query pert, check for distance ties (consecutive neighbors have same distance)
-    n_queries = len(query_pert_embeddings)
-    n_ties = 0
-    for i in range(n_queries):
-        if use_k > 1:
-            distance_diffs = np.diff(distances[i])
-            if np.any(distance_diffs < 1e-10):  # Allow floating point tolerance
-                print(f"        Distances: {distances[i]}")
-                n_ties += 1
-
-    if n_ties > 0:
-        print(f"  WARNING: {n_ties}/{n_queries} queries have distance ties among {use_k} neighbors")
-
-    return distances, indices
 
 
 def predict_with_precomputed_neighbors(target_gene_idx: int,
@@ -259,35 +146,28 @@ def predict_with_precomputed_neighbors(target_gene_idx: int,
         neighbor_distances: Distances to K nearest neighbors
         label_matrix: Perturbation × gene matrix of labels
         train_pert_indices: Indices of training perturbations
-        weights: 'distance' for inverse distance weighting, 'uniform' for equal weights
+        weights: 'distance' for cosine similarity weighting, 'uniform' for equal weights
 
     Returns:
         Tuple of (predicted_label, class_probabilities):
             - predicted_label: int (0, 1, or 2)
             - class_probabilities: np.ndarray of shape (3,) with probabilities for each class
     """
-
-    # Get labels from neighbors for the target gene
     neighbor_labels = label_matrix[train_pert_indices[neighbor_indices], target_gene_idx]
     neighbor_labels = neighbor_labels.astype(int)
 
-    # Compute class votes based on weighting scheme
     if weights == 'uniform':
         class_votes = np.bincount(neighbor_labels, minlength=3).astype(float)
     else:
-        # Inverse distance weighting (add small epsilon to avoid division by zero)
-        neighbor_weights = 1.0 / (neighbor_distances + 1e-10)
+        neighbor_weights = 1 - neighbor_distances
         class_votes = np.zeros(3)
         for label, weight in zip(neighbor_labels, neighbor_weights):
             class_votes[label] += weight
 
-    # Compute normalized probabilities
     class_probabilities = class_votes / class_votes.sum()
-
-    # Determine predicted class
     max_vote = class_votes.max()
+    # flag as caveats if voting tie occurs
     tied_classes = np.where(np.abs(class_votes - max_vote) < 1e-10)[0]
-
     if len(tied_classes) > 1:
         prediction = np.random.choice(tied_classes)
         print(f"    Vote tie: classes {tied_classes} tied with vote={max_vote:.4f}. Randomly choosing class {prediction}.")
@@ -302,13 +182,24 @@ def predict_knn_batch(df: pd.DataFrame,
                       pert_to_idx: Dict[str, int],
                       gene_to_idx: Dict[str, int],
                       train_pert_names: List[str],
-                      embedding_matrix: np.ndarray,
+                      embedding_matrix: Optional[np.ndarray],
                       k: int,
                       weights: str = 'distance',
                       return_proba: bool = False,
-                      verbose: bool = True) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+                      verbose: bool = True,
+                      copath_neighbors: Optional[Dict[str, list]] = None,
+                      return_uncertain: bool = False) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     """
-    Predict labels for a batch of (perturbation, gene) pairs using embedding-based KNN.
+    Predict labels for a batch of (perturbation, gene) pairs using KNN.
+
+    Exactly one neighbor source must be provided:
+      embedding_matrix   -- uses cosine dissimilarity to find neighbors at run time
+      copath_neighbors   -- uses pre-computed Jaccard-similarity neighbors from
+                            precompute_pathways.py; no embedding matrix needed
+
+    For 'distance' weighting:
+      embedding path : weight = 1 - cosine_dissimilarity  (= cosine similarity)
+      co-path        : weight = Jaccard similarity
 
     Args:
         df: DataFrame with pert-gene pairs to predict for
@@ -316,40 +207,82 @@ def predict_knn_batch(df: pd.DataFrame,
         pert_to_idx: Dict mapping perturbation name to row index in matrices
         gene_to_idx: Dict mapping gene name to column index in matrices
         train_pert_names: List of training perturbation names
-        embedding_matrix: Embedding matrix for all perturbations
+        embedding_matrix: Embedding matrix (n_perts, embed_dim); None for co-path
         k: Number of neighbors
-        weights: 'distance' for inverse distance weighting
-        return_proba: Whether to return both predictions and probabilities
+        weights: 'distance' for similarity weighting, 'uniform' for equal weights
+        return_proba: Whether to return class probabilities
         verbose: Whether to print progress
+        copath_neighbors: Pre-loaded {gene: [[neighbor, jaccard_sim], ...]}; None for embedding
 
     Returns:
-        If return_proba=False: (predictions, None) where predictions is array of shape (n_samples,)
-        If return_proba=True: (predictions, probabilities) where probabilities is array of shape (n_samples, 3)
+        If return_proba=False and return_uncertain=False: (predictions, None)
+        If return_proba=True:  (predictions, probabilities) shape (n_samples, 3)
+        If return_uncertain=True: adds uncertain_mask as third return value
     """
-    # Get train perturbation indices
+    if embedding_matrix is None and copath_neighbors is None:
+        raise ValueError("Provide either embedding_matrix or copath_neighbors")
+    if embedding_matrix is not None and copath_neighbors is not None:
+        raise ValueError("Provide only one of embedding_matrix or copath_neighbors, not both")
+
     train_pert_indices = np.array([pert_to_idx[p] for p in train_pert_names])
-
-    # Get query perturbation indices
     unique_query_perts = df['pert'].unique()
-    query_pert_indices = np.array([pert_to_idx[p] for p in unique_query_perts])
 
-    # Build query and train embedding matrices
-    query_emb = embedding_matrix[query_pert_indices]
-    train_emb = embedding_matrix[train_pert_indices]
+    if copath_neighbors is not None:
+        # Co-path: neighbors come from precomputed Jaccard similarity
+        if verbose:
+            print(f"  Using co-pathway neighbors for {len(unique_query_perts)} query perturbations...")
+        train_name_to_local = {n: i for i, n in enumerate(train_pert_names)}
+        train_pert_set = set(train_pert_names)
+        pert_to_neighbors = {}
+        zero_nb_perts = []
+        n_under_k = 0
+        for p in unique_query_perts:
+            if p not in copath_neighbors:
+                raise ValueError(f"Perturbation '{p}' not found in co-path neighbors.")
+            # Filter to training perturbations (already sorted desc by Jaccard sim)
+            train_nb = [(n, s) for n, s in copath_neighbors[p] if n in train_pert_set]
+            if len(train_nb) == 0:
+                # Gene belongs to niche pathways with no overlap to the current training set;
+                # record it and fall back to class 0 (non-DE) at prediction time.
+                zero_nb_perts.append(p)
+                continue
+            if len(train_nb) < k:
+                n_under_k += 1
+            train_nb = train_nb[:k]
+            local_idx = np.array([train_name_to_local[n] for n, _ in train_nb])
+            # store as distance = 1 - jaccard_sim so predict_with_precomputed_neighbors
+            # computes weight = 1 - distance = jaccard_sim
+            distances = np.array([1.0 - s for _, s in train_nb])
+            pert_to_neighbors[p] = (local_idx, distances)
+        if zero_nb_perts:
+            warnings.warn(
+                f"{len(zero_nb_perts)}/{len(unique_query_perts)} query perturbations have 0 "
+                f"co-path neighbors in the current training set and will be predicted as class 0 "
+                f"(non-DE): {sorted(zero_nb_perts)}"
+            )
+        zero_nb_set = set(zero_nb_perts)
+        if n_under_k > 0:
+            warnings.warn(
+                f"{n_under_k}/{len(unique_query_perts)} query perturbations have fewer than "
+                f"k={k} co-path neighbors in the current training set."
+            )
+    else:
+        # Embedding path: find neighbors via cosine dissimilarity
+        query_pert_indices = np.array([pert_to_idx[p] for p in unique_query_perts])
+        query_emb = embedding_matrix[query_pert_indices]
+        train_emb = embedding_matrix[train_pert_indices]
+        if verbose:
+            print(f"  Finding {k} nearest neighbors for {len(unique_query_perts)} query perturbations...")
+        distances, indices = find_k_nearest_neighbors(query_emb, train_emb, k)
+        pert_to_neighbors = {p: (indices[i], distances[i]) for i, p in enumerate(unique_query_perts)}
 
-    # Precompute neighbors for all query perturbations
-    if verbose:
-        print(f"  Finding {k} nearest neighbors for {len(unique_query_perts)} query perturbations...")
-    distances, indices = find_k_nearest_neighbors(query_emb, train_emb, k)
-
-    # Create mapping from perturbation to its neighbors and corresponding distances
-    pert_to_neighbors = {p: (indices[i], distances[i]) for i, p in enumerate(unique_query_perts)}
-
-    # Predict for each (pert, gene) pair
     predictions = []
     probabilities = [] if return_proba else None
+    uncertain = [] if return_uncertain else None
     n_total = len(df)
-
+    # zero_nb_set only populated in co-path mode; empty set for embedding path
+    if copath_neighbors is None:
+        zero_nb_set = set()
     for i, (_, row) in enumerate(df.iterrows()):
         if verbose and (i + 1) % 10000 == 0:
             print(f"  Processed {i + 1}/{n_total} pairs...")
@@ -358,9 +291,15 @@ def predict_knn_batch(df: pd.DataFrame,
         gene = row['gene']
         gene_idx = gene_to_idx[gene]
 
-        # Get precomputed neighbors for this perturbation
-        neighbor_idx, neighbor_dist = pert_to_neighbors[pert]
+        if pert in zero_nb_set:
+            predictions.append(0)
+            if return_proba:
+                probabilities.append(np.array([1/3, 1/3, 1/3]))
+            if return_uncertain:
+                uncertain.append(True)
+            continue
 
+        neighbor_idx, neighbor_dist = pert_to_neighbors[pert]
         pred, proba = predict_with_precomputed_neighbors(
             target_gene_idx=gene_idx,
             neighbor_indices=neighbor_idx,
@@ -372,36 +311,43 @@ def predict_knn_batch(df: pd.DataFrame,
         predictions.append(pred)
         if return_proba:
             probabilities.append(proba)
+        if return_uncertain:
+            uncertain.append(False)
 
     predictions = np.array(predictions)
     if return_proba:
         probabilities = np.array(probabilities)
+    if return_uncertain:
+        uncertain_mask = np.array(uncertain, dtype=bool)
+        return predictions, probabilities, uncertain_mask
 
     return predictions, probabilities
 
 
 def cross_validate_k(train_df: pd.DataFrame,
                      label_matrix: np.ndarray,
-                     embedding_matrix: np.ndarray,
+                     embedding_matrix: Optional[np.ndarray],
                      pert_to_idx: Dict[str, int],
                      gene_to_idx: Dict[str, int],
                      k_values: List[int] = [1, 3, 5, 7, 9],
                      n_folds: int = 5,
                      weights: str = 'distance',
-                     random_seed: int = 305) -> Tuple[int, Dict[int, Dict[str, float]]]:
+                     random_seed: int = 305,
+                     copath_neighbors: Optional[Dict[str, list]] = None) -> Tuple[int, Dict[int, Dict[str, float]]]:
     """
-    Perform K-fold cross-validation to select optimal K using embedding-based KNN.
+    Perform K-fold cross-validation to select optimal K.
 
     Args:
         train_df: Training DataFrame with training pert-gene pairs
         label_matrix: Perturbation × gene matrix of labels
-        embedding_matrix: Perturbation embedding matrix
+        embedding_matrix: Perturbation embedding matrix; None when using co-path
         pert_to_idx: Dict mapping perturbation name to row index in matrices
         gene_to_idx: Dict mapping gene name to column index in matrices
         k_values: List of K values to try
         n_folds: Number of folds
-        weights: 'distance' for inverse distance weighting
+        weights: 'distance' for similarity weighting, 'uniform' for equal weights
         random_seed: Random seed for reproducibility
+        copath_neighbors: Pre-loaded co-path neighbors; None for embedding path
 
     Returns:
         best_k: Optimal K value
@@ -413,24 +359,16 @@ def cross_validate_k(train_df: pd.DataFrame,
     print(f"K values to try: {k_values}")
     print(f"Number of folds: {n_folds}")
 
-    # Get unique training perturbations
     train_perts = train_df['pert'].unique()
-
-    # Set up K-fold by perturbations
     kf = KFold(n_splits=n_folds, shuffle=True, random_state=random_seed)
     cv_results = {k: defaultdict(list) for k in k_values}
 
     for fold, (train_idx, val_idx) in enumerate(kf.split(train_perts)):
         print(f"\nFold {fold + 1}/{n_folds}")
 
-        # Split perturbations
         fold_train_perts = train_perts[train_idx]
         fold_val_perts = train_perts[val_idx]
-
-        # Get validation data
         val_df = train_df[train_df['pert'].isin(fold_val_perts)]
-
-        # Get true labels
         y_true = val_df['label'].values
 
         for k in k_values:
@@ -445,19 +383,17 @@ def cross_validate_k(train_df: pd.DataFrame,
                 embedding_matrix=embedding_matrix,
                 k=k,
                 weights=weights,
-                return_proba=False,  # don't compute probabilities during CV
-                verbose=False        # this will only be true during actual test set prediction
+                return_proba=False,
+                verbose=False,
+                copath_neighbors=copath_neighbors,
             )
 
             # Compute metrics (without AUROC during CV)
             metrics = compute_3class_metrics(y_true, y_pred, y_proba=None)
-
             for metric_name, value in metrics.items():
                 cv_results[k][metric_name].append(value)
-
             print(f" balanced_acc={metrics['balanced_accuracy']:.4f}")
 
-    # Average results across folds
     print(f"\n{'='*70}")
     print("Cross-Validation Results (Mean ± Std)")
     print(f"{'='*70}")
@@ -473,7 +409,7 @@ def cross_validate_k(train_df: pd.DataFrame,
             avg_results[k][metric_name] = mean
             print(f"  {metric_name}: {mean:.4f} ± {std:.4f}")
 
-    # Select best K based on balanced accuracy
+    # best K is selected based on balanced accuracy
     best_k = max(k_values, key=lambda k: avg_results[k]['balanced_accuracy'])
     print(f"\nBest K (by balanced accuracy): {best_k}")
 
@@ -484,33 +420,41 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Weighted KNN classifier for 3-class perturbation-gene prediction')
     parser.add_argument('--de_doc_file', type=str, required=True, help='Path to DE_DOC CSV file (must have split column)')
-    parser.add_argument('--embedding_file', type=str, required=True, help='Path to GenePT embedding zip file')
-    parser.add_argument('--embedding_file2', type=str, required=True, help='Path to additional embedding other than GenePT')
+    parser.add_argument('--embedding_file', type=str, default=None, help='Path to primary embedding pkl file (required unless --copath_file is provided)')
+    parser.add_argument('--embedding_file2', type=str, default=None, help='(optional) Path to a second pkl to merge into the primary embedding')
+    parser.add_argument('--copath_file', type=str, default=None, help='Path to gene_copath_neighbors.json produced by precompute_pathways.py; mutually exclusive with --embedding_file')
     parser.add_argument('--dataset_name', type=str, required=True, help='Dataset name (for output files)')
     parser.add_argument('--k_values', type=str, default='1,3,5,7,9', help='Comma-separated K values to try (default: 1,3,5,7,9)')
     parser.add_argument('--n_folds', type=int, default=5, help='Number of folds for cross-validation (default: 5)')
     parser.add_argument('--skip_cv', action='store_true', help='Skip cross-validation and use specified K')
     parser.add_argument('--k', type=int, default=5, help='K value to use if skipping CV (default: 5)')
-    parser.add_argument('--weights', type=str, default='distance', choices=['distance', 'uniform'], help='Weight function for KNN (default: distance)')
+    parser.add_argument('--weights', type=str, default='distance', choices=['distance', 'uniform'], help="Weight function: 'distance' uses cosine similarity as vote weight, 'uniform' gives equal weight to all neighbors (default: distance)")
     parser.add_argument('--random_seed', type=int, default=305, help='Random seed for reproducibility (default: 305)')
     parser.add_argument('--output_dir', type=str, default='results', help='Output directory for results (default: results)')
     parser.add_argument('--subsample', type=int, default=None, help='Subsample perturbations per train and test data for quick check of the algorithm (default: None = use all)')
+    parser.add_argument('--n_bootstrap', type=int, default=0, help='Number of bootstrap trials to estimate uncertainty from co-path zero-neighbor fallbacks (default: 0 = disabled)')
 
     args = parser.parse_args()
+
+    # Validate: exactly one of --embedding_file or --copath_file must be provided
+    if args.copath_file is not None and args.embedding_file is not None:
+        parser.error("--copath_file and --embedding_file are mutually exclusive")
+    if args.copath_file is None and args.embedding_file is None:
+        parser.error("One of --embedding_file or --copath_file must be provided")
+
+    use_copath = args.copath_file is not None
 
     print("="*70)
     print("Weighted KNN Classifier for Perturbation-Gene Prediction")
     print("="*70)
     print(f"\nDataset: {args.dataset_name}")
+    print(f"Mode: {'co-pathway (Jaccard similarity)' if use_copath else 'embedding (cosine similarity)'}")
     print(f"Weights: {args.weights}")
     print(f"Random seed: {args.random_seed}")
     print(f"Output results at: {args.output_dir}")
     print(f"Skip CV: {args.skip_cv}")
 
-    # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
-
-    # Load DE+DOC data
     train_df, test_df = load_de_doc_file(args.de_doc_file)
 
     # TESTING PURPOSE ONLY: subsample a small amount of train and test perturbations for quick check
@@ -521,16 +465,20 @@ if __name__ == "__main__":
         test_pert_subsample = test_pert[:args.subsample]
         train_df = train_df[train_df['pert'].isin(train_pert_subsample)]
         test_df = test_df[test_df['pert'].isin(test_pert_subsample)]
-    
-    # ======
-    # pert_wo_enbedding = ["AC118549.1", "ALG1L", "C12orf45", "C1orf109", "C7orf26", 
-    #                     "C9orf16", "CCDC130", "CCDC144NL", "DDN", "FRG2", "MBTPS1", 
-    #                     "PHB", "POLR2B", "SPATA5L1", "TDGF1", "WDR61", "WDR92", "ZNF720", 
-    #                     "FAM102B", "INTS2", "SPATA5"]
-    # print(f"\nWARNING: Deleting perturbations {pert_wo_enbedding} for now since do not have embeddings!")
-    # train_df = train_df[~train_df['pert'].isin(pert_wo_enbedding)]
-    # test_df = test_df[~test_df['pert'].isin(pert_wo_enbedding)]
-    # ======
+
+    # Drop perturbations with no embedding / no co-path neighbors for the chosen mode.
+    # The drop sets are pre-computed from logs/check_coverage.txt (union across all datasets).
+    drop_set = PERTS_NO_COPATH_NEIGHBORS if use_copath else PERTS_NO_ESM2_EMBEDDING
+    mode_label = "co-path neighbors" if use_copath else "ESM2 embedding"
+    for split_name, df in [("train", train_df), ("test", test_df)]:
+        dropped = set(df['pert'].unique()) & drop_set
+        if dropped:
+            print(f"\nDropping {len(dropped)} {split_name} perturbations with no {mode_label}: "
+                  f"{sorted(dropped)}")
+    train_df = train_df[~train_df['pert'].isin(drop_set)]
+    test_df  = test_df[~test_df['pert'].isin(drop_set)]
+    print(f"\nAfter filtering: train={train_df['pert'].nunique()} perts, "
+          f"test={test_df['pert'].nunique()} perts")
 
     print("\nBuilding log2fc and label matrix from train data...")
     _, label_matrix, pert_to_idx, gene_to_idx = build_log2fc_and_label_matrix(train_df)
@@ -538,21 +486,30 @@ if __name__ == "__main__":
     print(f"    Unique genes: {len(gene_to_idx)}")
     print(f"    Label matrix shape: {label_matrix.shape} (perturbations × genes)")
 
-    # Load perturbation embeddings
-    genePT_dict = load_genePT_embedding(args.embedding_file)
-    additional_dict = load_additional_embedding(args.embedding_file2)
-    print(f"\nLoaded embeddings for {len(genePT_dict)+len(additional_dict)} genes")
+    if use_copath:
+        print(f"\nLoading co-pathway neighbors from {args.copath_file}...")
+        copath_neighbors = load_copath_neighbors(args.copath_file)
+        embedding_matrix = None
+        embedding_dict = None
+    else:
+        copath_neighbors = None
+        print(f"\nLoading embeddings from {args.embedding_file}...")
+        primary_dict = load_embedding_from_pkl(args.embedding_file)
+        if args.embedding_file2 is not None:
+            secondary_dict = load_embedding_from_pkl(args.embedding_file2)
+            embedding_dict = {**primary_dict, **secondary_dict}
+            print(f"Loaded embeddings: {len(primary_dict)} (primary) + "
+                  f"{len(secondary_dict)} (secondary) = {len(embedding_dict)} unique genes")
+        else:
+            embedding_dict = primary_dict
+            print(f"Loaded embeddings for {len(embedding_dict)} genes")
 
-    # Build embedding matrix for training perturbations
-    print("\nBuilding embedding matrix...")
-    embedding_dict = {**genePT_dict, **additional_dict}
-    embedding_matrix = build_embedding_matrix(pert_to_idx, embedding_dict)
-    print(f"Embedding matrix shape: {embedding_matrix.shape}")
+        print("\nBuilding embedding matrix...")
+        embedding_matrix = build_embedding_matrix(list(pert_to_idx.keys()), embedding_dict)
+        print(f"Embedding matrix shape: {embedding_matrix.shape}")
 
-    # Plot train/test data summary
     plot_data_summary(train_df, test_df, args.dataset_name, output_dir=args.output_dir)
 
-    # Cross-validation for K selection if not skipped
     if args.skip_cv:
         best_k = args.k
         print(f"\nSkipping cross-validation, using K = {best_k}")
@@ -568,25 +525,20 @@ if __name__ == "__main__":
             k_values=k_values,
             n_folds=args.n_folds,
             weights=args.weights,
-            random_seed=args.random_seed
+            random_seed=args.random_seed,
+            copath_neighbors=copath_neighbors,
         )
-
-        # Save CV results
         cv_results_df = pd.DataFrame(cv_results).T
         cv_results_df.index.name = 'k'
         cv_results_path = os.path.join(args.output_dir, f'{args.dataset_name}_cv_results.csv')
         cv_results_df.to_csv(cv_results_path)
         print(f"\nCV results saved to {cv_results_path}")
 
-    # Final prediction on test set
     print(f"\n{'='*70}")
     print(f"Final Prediction on Test Set (K = {best_k})")
     print(f"{'='*70}")
 
-    # Get training perturbations
     train_perts = train_df['pert'].unique().tolist()
-
-    # Build combined matrices including test perturbations
     combined_df = pd.concat([train_df, test_df])
 
     print("\nBuilding combined log2fc and label matrix from train+test df...")
@@ -595,13 +547,15 @@ if __name__ == "__main__":
     print(f"Unique genes: {len(combined_gene_to_idx)}")
     print(f"Label matrix shape: {combined_label_matrix.shape} (perturbations × genes)")
 
-    # Build combined embedding matrix
-    print("\nBuilding combined embedding matrix...")
-    combined_embedding_matrix = build_embedding_matrix(combined_pert_to_idx, embedding_dict)
-    print(f"Combined embedding matrix shape: {combined_embedding_matrix.shape}")
+    if use_copath:
+        combined_embedding_matrix = None
+    else:
+        print("\nBuilding combined embedding matrix...")
+        combined_embedding_matrix = build_embedding_matrix(list(combined_pert_to_idx.keys()), embedding_dict)
+        print(f"Combined embedding matrix shape: {combined_embedding_matrix.shape}")
 
     print(f"\nPredicting on {len(test_df)} test pairs (with probabilities for AUROC)...")
-    y_pred, y_proba = predict_knn_batch(
+    y_pred, y_proba, uncertain_mask = predict_knn_batch(
         df=test_df,
         label_matrix=combined_label_matrix,
         pert_to_idx=combined_pert_to_idx,
@@ -611,14 +565,13 @@ if __name__ == "__main__":
         k=best_k,
         weights=args.weights,
         return_proba=True,
-        verbose=True
+        verbose=False,
+        copath_neighbors=copath_neighbors,
+        return_uncertain=True,
     )
     y_true = test_df['label'].values
-
-    # Compute metrics including AUROC
     metrics = compute_3class_metrics(y_true, y_pred, y_proba)
 
-    # Print results
     print(f"\n{'='*70}")
     print("FINAL RESULTS")
     print(f"{'='*70}")
@@ -640,9 +593,8 @@ if __name__ == "__main__":
         print(f"    Recall:    {metrics[f'recall_class_{class_idx}']:.4f}")
         print(f"    F1:        {metrics[f'f1_class_{class_idx}']:.4f}")
         if f'auroc_ovr_class_{class_idx}' in metrics:
-            print(f"    AUROC OvR: {metrics[f'auroc_ovr_class_{class_idx}']:.4f}")
+            print(f"    AUROC OvR:      {metrics[f'auroc_ovr_class_{class_idx}']:.4f}")
 
-    # Detailed classification report
     print(f"\n{'='*70}")
     print("Detailed Classification Report")
     print(f"{'='*70}")
@@ -653,11 +605,9 @@ if __name__ == "__main__":
         zero_division=0
     ))
 
-    # Save predictions
     predictions_df = test_df.copy()
     predictions_df['prediction'] = y_pred
     predictions_df['correct'] = (y_pred == y_true)
-    # Add predicted probabilities for each class
     predictions_df['prob_class_0'] = y_proba[:, 0]
     predictions_df['prob_class_1'] = y_proba[:, 1]
     predictions_df['prob_class_2'] = y_proba[:, 2]
@@ -665,7 +615,6 @@ if __name__ == "__main__":
     predictions_df.to_csv(predictions_path, index=False)
     print(f"\nPredictions saved to {predictions_path}")
 
-    # Save final metrics
     metrics_df = pd.DataFrame([metrics])
     metrics_df['best_k'] = best_k
     metrics_df['dataset'] = args.dataset_name
@@ -673,15 +622,24 @@ if __name__ == "__main__":
     metrics_df.to_csv(metrics_path, index=False)
     print(f"Metrics saved to {metrics_path}")
 
-    # Run error analysis
+    # Bootstrap uncertainty estimation for co-path zero-neighbor fallbacks.
+    # Uncertain pairs (zero_nb_set hits) were assigned class 0 deterministically,
+    # but their true class is unknown. By re-sampling them uniformly from {0,1,2}
+    # across many trials, we quantify how much the metric depends on these fallbacks:
+    # a large std means the metric is heavily influenced by the uncertain pairs.
+    n_uncertain = uncertain_mask.sum()
+    if args.n_bootstrap > 0 and n_uncertain > 0:
+        run_bootstrap(y_true, y_pred, uncertain_mask, args.n_bootstrap,
+                      args.random_seed, args.output_dir, args.dataset_name)
+    elif args.n_bootstrap > 0 and n_uncertain == 0:
+        print(f"\nUncertain pairs (co-path zero-neighbor fallbacks): 0/{len(y_true)}")
+        print("No uncertain pairs found; bootstrap skipped.")
+
     print(f"\n{'='*70}")
     print("ERROR ANALYSIS")
     print(f"{'='*70}")
-
-    # Create test_keys as list of (pert, gene) tuples
     test_keys = list(zip(test_df['pert'], test_df['gene']))
-
-    analyzer, error_results = run_error_analysis_from_results(
+    run_error_analysis_from_results(
         dataset=args.dataset_name,
         test_keys=test_keys,
         predictions=y_pred,
@@ -690,7 +648,6 @@ if __name__ == "__main__":
         task_name="3class_KNN",
         class_names=['Non-DE', 'Up-regulated', 'Down-regulated']
     )
-
     print(f"\n{'='*70}")
-    print("ANALYSIS COMPLETE")
+    print("ANALYSIS COMPLETE\n")
     print(f"{'='*70}")

@@ -1,7 +1,6 @@
 """
 generate_embeddings.py
 =======================
-
 Generate GenePT embeddings using OpenAI API.
 
 Prerequisites:
@@ -22,15 +21,12 @@ import numpy as np
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# Load OpenAI API key
 load_dotenv()
 api_key = os.environ["OPENAI_API_KEY"]
-
-# Configuration
-GPT_DIM = 3072  # Dimension of text-embedding-3-large
+GPT_DIM = 3072                                          # Dimension of text-embedding-3-large
 EMBEDDING_MODEL = "text-embedding-3-large"
 INPUT_FILE = "data/all_gene_descriptions.json"
-OUTPUT_FILE = "data/gene_embeddings.pkl"
+OUTPUT_FILE = "data/additional_genePT_embeddings.pkl"
 
 # Gene list
 GENE_LIST = ["AC118549.1", "ALG1L", "C12orf45", "C1orf109", "C7orf26",

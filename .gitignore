@@ -45,9 +45,17 @@ coverage.xml
 # Logs
 *.log
 
-
 # Large precomputed neighbor files
 baseline/gene_*.json
 
 # Large shared pairs CSVs
 output/concordance/shared_pairs_*.csv
+
+# Large raw data
+data/
+
+# Plotting and others
+plotting_scripts/
+STATE/
+SUMMER/
+Scouter/
