@@ -37,8 +37,8 @@ def compute_de_statistics(
     control_key: str = 'non-targeting',
     target_col: str = 'target_gene',
     gene_row: str = 'gene_name',
-    alpha: float = 0.05,
-    log2fc_threshold: float = 0.25,
+    alpha: float = 0.01,
+    log2fc_threshold: float = 0.00,
     save_path: Optional[str] = None
 ) -> pd.DataFrame:
     """
@@ -157,8 +157,8 @@ if __name__ == "__main__":
     parser.add_argument('--control', type=str, default='non-targeting', help='Control perturbation label (default: non-targeting)')
     parser.add_argument('--target_col', type=str, default='target_gene', help='Column with perturbation labels (default: target_gene)')
     parser.add_argument('--gene_row', type=str, default='gene_name', help='Column with gene names (default: gene_name)')
-    parser.add_argument('--alpha', type=float, default=0.05, help='Significance threshold for BH-corrected p-value (default: 0.05)')
-    parser.add_argument('--log2fc_threshold', type=float, default=0.25, help='Minimum absolute log2 fold change threshold (default: 0.25)')
+    parser.add_argument('--alpha', type=float, default=0.01, help='Significance threshold for BH-corrected p-value')
+    parser.add_argument('--log2fc_threshold', type=float, default=0.00, help='Minimum absolute log2 fold change threshold')
 
     args = parser.parse_args()
     print(f"Loading AnnData from {args.adata}...")
