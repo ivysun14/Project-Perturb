@@ -4,10 +4,10 @@ calibration_split.py
 
 Adds a `split_calib` column to an existing DE/DOC splitted CSV.
 
-The original `split` column ('train'/'test') is left untouched so all
+The original `split_80` column ('train'/'test') is left untouched so all
 existing scripts continue to work unchanged. The new `split_calib` column
-mirrors `split` except that 20% of training perturbations are relabelled
-'calibration' for tuning post-prediction calibration hyperparameters.
+mirrors `split_80` except that 25% of training perturbations are relabelled
+'calibration', giving a 60/20/20 train/cal/test split overall.
 
 Usage:
     python calibration_split.py <DE_DOC_*_splitted.csv>
@@ -21,26 +21,26 @@ from sklearn.model_selection import train_test_split
 def split_calibration(
     df: pd.DataFrame,
     file_path: str,
-    cal_size: float = 0.20,
+    cal_size: float = 0.25,
     random_state: int = 305,
 ) -> pd.DataFrame:
     """
-    Add a `split_calib` column that mirrors `split` but reassigns a fraction
-    of training perturbations to 'calibration'. The original `split` column
+    Add a `split_calib` column that mirrors `split_80` but reassigns a fraction
+    of training perturbations to 'calibration'. The original `split_80` column
     is not modified.
 
     Args:
-        df           : DataFrame with columns [pert, gene, label, split].
+        df           : DataFrame with columns [pert, gene, label, split_80].
         file_path    : Path to write the updated CSV (overwrites input).
         cal_size     : Fraction of training perturbations to use as calibration.
-                       Default 0.20 gives a 60/15/25 train/cal/test overall
-                       split when the prior train/test was 75/25.
+                       Default 0.25 gives a 60/20/20 train/cal/test overall
+                       split when the prior train/test was 80/20.
         random_state : Random seed for reproducibility.
 
     Returns:
         DataFrame with the new `split_calib` column added.
     """
-    train_perts = df[df['split'] == 'train']['pert'].unique()
+    train_perts = df[df['split_80'] == 'train']['pert'].unique()
     print(f"Training perturbations available: {len(train_perts)}")
 
     # Stratify by dominant DE class — same approach as train_test_split.py
@@ -67,7 +67,7 @@ def split_calibration(
     # Build split_calib by copying split and relabelling calibration perturbations
     cal_set = set(cal_perts)
     df['split_calib'] = df.apply(
-        lambda r: 'calibration' if r['pert'] in cal_set else r['split'], axis=1
+        lambda r: 'calibration' if r['pert'] in cal_set else r['split_80'], axis=1
     )
 
     print(f"\nSplit statistics (split_calib):")

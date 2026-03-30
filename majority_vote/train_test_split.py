@@ -1,7 +1,6 @@
 '''
 train_test_split.py
 ===================
-
 Train test split on perturbations with stratified label balancing.
 
 The approach is:
@@ -15,7 +14,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from analysis_utility import update_DE_DOC_labels
 
-def split_train_test(df: pd.DataFrame, file_path: str, test_size: float = 0.25, random_state: int = 305) -> pd.DataFrame:
+def split_train_test(df: pd.DataFrame, file_path: str, test_size: float = 0.20, random_state: int = 305) -> pd.DataFrame:
     """
     Split by perturbations while maintaining balanced label proportions in train/test.
     Uses stratified sampling based on each perturbation's dominant label class
@@ -28,7 +27,7 @@ def split_train_test(df: pd.DataFrame, file_path: str, test_size: float = 0.25, 
         random_state: Random seed for reproducibility
 
     Returns:
-        DataFrame with 'split' column ('train' or 'test')
+        DataFrame with 'split_80' column ('train' or 'test')
     """
 
     print(f"Loaded DE+DOC file: {len(df)} perturbation-gene pairs")
@@ -74,9 +73,9 @@ def split_train_test(df: pd.DataFrame, file_path: str, test_size: float = 0.25, 
         stratify=strata
     )
 
-    df['split'] = df['pert'].apply(lambda x: 'train' if x in set(train_perts) else 'test')
-    train_df = df[df['split'] == 'train']
-    test_df = df[df['split'] == 'test']
+    df['split_80'] = df['pert'].apply(lambda x: 'train' if x in set(train_perts) else 'test')
+    train_df = df[df['split_80'] == 'train']
+    test_df = df[df['split_80'] == 'test']
     print(f"\nSplit statistics:")
     print(f"  Train perturbations: {len(train_perts)}, Test perturbations: {len(test_perts)}")
     print(f"  Train pairs: {len(train_df)}, Test pairs: {len(test_df)}")
@@ -100,12 +99,12 @@ def split_train_test(df: pd.DataFrame, file_path: str, test_size: float = 0.25, 
 if __name__ == "__main__":
 
     # read in csv
-    df = pd.read_csv("files/DE_DOC_hepg2.csv")
+    df = pd.read_csv("../data/DE_DOC_K562_Replogle_splitted.csv")
     
     # update labels based on set p-value and log2FC threshold
     #df_strict = update_DE_DOC_labels(df, alpha=0.10, log2fc_threshold=0.0)
 
     # perform train/test split
-    df_strict_splitted = split_train_test(df, file_path="files/DE_DOC_hepg2_splitted.csv")
+    df_strict_splitted = split_train_test(df, file_path="../data/DE_DOC_K562_Replogle_splitted.csv")
 
     print("\nDone!")

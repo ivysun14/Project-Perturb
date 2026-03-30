@@ -14,20 +14,20 @@ import anndata as ad
 
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(_project_root)
-sys.path.append(os.path.join(_project_root, "baseline"))
-from baseline.DE_DOC_stats import compute_de_statistics
-from baseline.analysis_utility import resolve_repeats
+sys.path.append(os.path.join(_project_root, "majority_vote"))
+from majority_vote.DE_DOC_stats import compute_de_statistics
+from majority_vote.analysis_utility import resolve_repeats
 
 ALPHA = 0.01
 LOG2FC_THRESHOLD = 0.00
 
 def main():
     parser = argparse.ArgumentParser(description="Compute DE statistics on calibrated Scouter predictions.")
-    parser.add_argument("--input",              required=True,          help="Path to calibrated h5ad.")
-    parser.add_argument("--dataset",            required=True,          help="Dataset name used for output filename.")
-    parser.add_argument("--target_col",         default="pert",         help="obs column for perturbation identity.")
-    parser.add_argument("--control_name",       default="non-targeting",help="Control label in target_col.")
-    parser.add_argument("--out_dir",            default="calibrated_de",help="Directory for output DE CSV.")
+    parser.add_argument("--input", required=True, help="Path to calibrated h5ad.")
+    parser.add_argument("--dataset", required=True, help="Dataset name used for output filename.")
+    parser.add_argument("--target_col", default="pert", help="obs column for perturbation identity.")
+    parser.add_argument("--control_name", default="non-targeting",help="Control label in target_col.")
+    parser.add_argument("--out_dir",help="Directory for output DE CSV.")
     args = parser.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
