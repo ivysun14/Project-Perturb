@@ -1,2 +1,13 @@
 # execution script
 *.sh
+
+# logs
+logs/
+
+# data files
+sparsity_calibrated/
+sparsity_calibrated_de/
+sparsity_calibrated_metrics/
+var_calibrated/
+var_calibrated_de/
+var_calibrated_metrics/

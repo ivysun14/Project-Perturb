@@ -5,38 +5,34 @@ Compare predicted DE labels (from compute_de.py) against ground-truth DE labels
 and compute 3-class (Non-DE / Up / Down) metrics across multiple datasets.
 """
 
+import argparse
 import os
 import sys
 import pandas as pd
 
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(_project_root)
-sys.path.append(os.path.join(_project_root, "baseline"))
-from baseline.analysis_utility import compute_3class_metrics
+sys.path.append(os.path.join(_project_root, "majority_vote"))
+from majority_vote.analysis_utility import compute_3class_metrics
 
-# ================
-# INPUT ARGUMENTS
-# ================
-DATASETS = [
-    {
-        "dataset": "hepg2",
-        "pred":    "calibrated_de/hepg2_pred_DE.csv",
-        "truth":   "../data/DE_DOC_hepg2_splitted.csv",
-    },
-    {
-        "dataset": "jurkat",
-        "pred":    "calibrated_de/jurkat_pred_DE.csv",
-        "truth":   "../data/DE_DOC_jurkat_splitted.csv",
-    },
-    {
-        "dataset": "rpe1",
-        "pred":    "calibrated_de/rpe1_pred_DE.csv",
-        "truth":   "../data/DE_DOC_rpe1_splitted.csv",
-    },
-]
-SPLIT   = None             # filter truth to this split; set to None to use all rows
-OUT_DIR = "calibrated_metrics"
-OUT_CSV = "all_calibrated_metrics.csv"
+_TRUTH = {
+    "hepg2":  "../data/DE_DOC_hepg2_splitted.csv",
+    "jurkat": "../data/DE_DOC_jurkat_splitted.csv",
+    "rpe1":   "../data/DE_DOC_rpe1_splitted.csv",
+}
+_DS_NAMES = list(_TRUTH.keys())
+SPLIT = None    # filter truth to this split; None to use all rows
+
+
+def _build_datasets(pred_dir, ds_prefix=""):
+    return [
+        {
+            "dataset": ds,
+            "pred":    os.path.join(pred_dir, f"{ds_prefix}{ds}_pred_DE.csv"),
+            "truth":   _TRUTH[ds],
+        }
+        for ds in _DS_NAMES
+    ]
 
 
 def eval_one(dataset, pred_path, truth_path):
@@ -94,10 +90,19 @@ def eval_one(dataset, pred_path, truth_path):
 
 
 def main():
-    os.makedirs(OUT_DIR, exist_ok=True)
+    parser = argparse.ArgumentParser(description="Evaluate calibrated DE predictions.")
+    parser.add_argument("--pred_dir", help="Directory containing {dataset}_pred_DE.csv files.")
+    parser.add_argument("--out_dir", help="Directory for output metrics CSV.")
+    parser.add_argument("--model", default="", help="Optional model label included in output filename.")
+    parser.add_argument("--ds_prefix", default="", help="Prefix prepended to dataset name in pred filenames (e.g. 'STATE_').")
+    args = parser.parse_args()
+
+    datasets = _build_datasets(args.pred_dir, args.ds_prefix)
+    out_csv = f"{args.model + '_' if args.model else ''}metrics.csv"
+    os.makedirs(args.out_dir, exist_ok=True)
 
     rows = []
-    for entry in DATASETS:
+    for entry in datasets:
         print(f"\n{'='*60}")
         print(f"  Dataset: {entry['dataset'].upper()}")
         print(f"{'='*60}")
@@ -106,7 +111,7 @@ def main():
             rows.append(row)
 
     if rows:
-        out_path = os.path.join(OUT_DIR, OUT_CSV)
+        out_path = os.path.join(args.out_dir, out_csv)
         pd.DataFrame(rows).to_csv(out_path, index=False)
         print(f"\nAll metrics saved to {out_path}")
 
