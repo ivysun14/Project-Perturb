@@ -18,6 +18,11 @@ Classes:
   1 = Up-regulated
   2 = Down-regulated
 
+Modes:
+  Within-cell-line:  --de_doc_file <single CSV with split column>
+  Cross-cell-line:   --train_de_doc_files <csv1,csv2,csv3> --test_de_doc_file <csv4>
+                     Training sets from multiple cell lines are merged via majority vote.
+
 Input CSV format (from DE_DOC_stats.py):
   pert, gene, label, split
 """
@@ -31,9 +36,10 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 from sklearn.metrics import classification_report
+from sklearn.exceptions import ConvergenceWarning
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from baseline.analysis_utility import compute_3class_metrics
+from majority_vote.analysis_utility import compute_3class_metrics
 
 def load_embeddings(primary_path: str, secondary_path: str = None) -> dict:
     """
@@ -108,6 +114,54 @@ def build_label_matrix(df: pd.DataFrame, pert_names: list, gene_names: list) -> 
     return Y
 
 
+def merge_train_sets(train_dfs: list, random_seed: int) -> pd.DataFrame:
+    """
+    Merge training DataFrames from multiple cell lines into a single train set.
+
+    For each (pert, gene) pair that appears in more than one cell line, the label
+    is decided by majority vote.  When two or more labels tie, a warning is printed
+    and the tie is broken by drawing uniformly at random from the tied classes.
+
+    Args:
+        train_dfs:   list of DataFrames, each with columns [pert, gene, label]
+        random_seed: seed for the random tie-breaker
+
+    Returns:
+        merged DataFrame with columns [pert, gene, label] — one row per unique pair
+    """
+    rng = np.random.default_rng(random_seed)
+    combined = pd.concat(
+        [df[['pert', 'gene', 'label']] for df in train_dfs],
+        ignore_index=True,
+    )
+
+    records = []
+    tie_pairs = []
+
+    for (pert, gene), group in combined.groupby(['pert', 'gene'], sort=False):
+        counts = group['label'].value_counts()
+        max_count = counts.max()
+        top_labels = counts[counts == max_count].index.tolist()
+        if len(top_labels) > 1:
+            tie_pairs.append((pert, gene, sorted(int(l) for l in top_labels)))
+            chosen = int(rng.choice(top_labels))
+        else:
+            chosen = int(top_labels[0])
+        records.append({'pert': pert, 'gene': gene, 'label': chosen})
+
+    if tie_pairs:
+        print(f"\n[WARNING] {len(tie_pairs)} (pert, gene) pair(s) had label ties — broken randomly:")
+        for pert, gene, labels in tie_pairs[:20]:
+            print(f"  ({pert}, {gene}): tied classes {labels}")
+        if len(tie_pairs) > 20:
+            print(f"  ... and {len(tie_pairs) - 20} more ties not shown")
+
+    merged = pd.DataFrame(records)
+    print(f"Merged train set: {len(merged)} unique (pert, gene) pairs "
+          f"from {len(train_dfs)} cell lines  |  {len(tie_pairs)} ties broken")
+    return merged
+
+
 def fit_per_gene_models(X_train: np.ndarray, Y_train: np.ndarray,
                         gene_names: list, Cs: list, cv: int,
                         max_iter: int, random_seed: int) -> dict:
@@ -130,8 +184,9 @@ def fit_per_gene_models(X_train: np.ndarray, Y_train: np.ndarray,
                                           ('constant', int) for single-class genes
     """
     models = {}
-    n_skipped  = 0
-    n_constant = 0
+    n_skipped      = 0
+    n_constant     = 0
+    n_nonconverged = 0
     for gi, gene in enumerate(gene_names):
         y_g = Y_train[:, gi]
         observed = ~np.isnan(y_g)
@@ -168,10 +223,19 @@ def fit_per_gene_models(X_train: np.ndarray, Y_train: np.ndarray,
             )
         clf.fit(X_train[observed], y_g[observed].astype(int))
         models[gene] = clf
+        if np.any(clf.n_iter_ >= max_iter):
+            n_nonconverged += 1
 
     n_fitted = len(models) - n_constant
     print(f"  Fitted models for {n_fitted}/{len(gene_names)} genes  |  "
           f"constant predictor: {n_constant}  |  skipped (<2 obs): {n_skipped}")
+    if n_nonconverged > 0:
+        warnings.warn(
+            f"{n_nonconverged}/{n_fitted} gene models may not have converged "
+            f"(hit max_iter={max_iter}). Consider increasing --max_iter.",
+            ConvergenceWarning,
+            stacklevel=2,
+        )
     return models
 
 
@@ -237,8 +301,23 @@ def predict_pairs(test_df: pd.DataFrame, models: dict,
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='Per-gene logistic regression for 3-class perturbation-gene prediction')
-    parser.add_argument('--de_doc_file', type=str, required=True, help='Path to DE_DOC CSV file with columns: pert, gene, label, split')
+    parser = argparse.ArgumentParser(
+        description='Per-gene logistic regression for 3-class perturbation-gene prediction',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Modes:\n"
+            "  Within-cell-line:  --de_doc_file <csv>\n"
+            "  Cross-cell-line:   --train_de_doc_files <csv1,csv2,csv3> --test_de_doc_file <csv4>"
+        ),
+    )
+    # Within-cell-line mode
+    parser.add_argument('--de_doc_file', type=str, default=None,
+                        help='(within-cell-line) DE_DOC CSV with columns: pert, gene, label, split')
+    # Cross-cell-line mode
+    parser.add_argument('--train_de_doc_files', type=str, default=None,
+                        help='(cross-cell-line) Comma-separated DE_DOC CSVs for training cell lines')
+    parser.add_argument('--test_de_doc_file', type=str, default=None,
+                        help='(cross-cell-line) DE_DOC CSV for the held-out test cell line')
     parser.add_argument('--embedding_file', type=str, required=True, help='Path to primary GenePT embedding pkl')
     parser.add_argument('--embedding_file2', type=str, default=None, help='Path to secondary GenePT embedding pkl (merged into primary)')
     parser.add_argument('--dataset_name', type=str, required=True, help='Dataset name used for output file naming')
@@ -250,10 +329,23 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # Validate mode
+    within_mode = args.de_doc_file is not None
+    cross_mode  = args.train_de_doc_files is not None or args.test_de_doc_file is not None
+    if within_mode and cross_mode:
+        parser.error("Specify either --de_doc_file (within-cell-line) OR "
+                     "--train_de_doc_files/--test_de_doc_file (cross-cell-line), not both.")
+    if not within_mode and not cross_mode:
+        parser.error("Must specify either --de_doc_file or "
+                     "--train_de_doc_files + --test_de_doc_file.")
+    if cross_mode and (args.train_de_doc_files is None or args.test_de_doc_file is None):
+        parser.error("Cross-cell-line mode requires both --train_de_doc_files and --test_de_doc_file.")
+
     print("=" * 70)
     print("Per-Gene Logistic Regression: Perturbation-Gene Prediction")
     print("=" * 70)
     print(f"\nDataset:  {args.dataset_name}")
+    print(f"Mode:     {'within-cell-line' if within_mode else 'cross-cell-line'}")
     print(f"Cs (CV):    {args.Cs}")
     print(f"CV folds:   {args.cv}")
     print(f"Max iter:   {args.max_iter}")
@@ -261,12 +353,34 @@ if __name__ == "__main__":
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    df = pd.read_csv(args.de_doc_file)
-    if 'split' not in df.columns:
-        raise ValueError("CSV must have a 'split' column ('train'/'test')")
-    
-    train_df = df[df['split'] == 'train'].reset_index(drop=True)
-    test_df  = df[df['split'] == 'test'].reset_index(drop=True)
+    if within_mode:
+        df = pd.read_csv(args.de_doc_file)
+        if 'split' not in df.columns:
+            raise ValueError("CSV must have a 'split' column ('train'/'test')")
+        train_df = df[df['split'] == 'train'].reset_index(drop=True)
+        test_df  = df[df['split'] == 'test'].reset_index(drop=True)
+    else:
+        # Cross-cell-line: merge training sets from multiple cell lines
+        train_paths = [p.strip() for p in args.train_de_doc_files.split(',')]
+        print(f"\nLoading {len(train_paths)} training cell line file(s):")
+        train_dfs = []
+        for path in train_paths:
+            cell_df = pd.read_csv(path)
+            if 'split' not in cell_df.columns:
+                raise ValueError(f"CSV '{path}' must have a 'split' column")
+            cell_train = cell_df[cell_df['split'] == 'train'].reset_index(drop=True)
+            print(f"  {path}: {len(cell_train)} train pairs")
+            train_dfs.append(cell_train)
+
+        print("\nMerging training sets via majority vote ...")
+        train_df = merge_train_sets(train_dfs, args.random_seed)
+
+        test_cell_df = pd.read_csv(args.test_de_doc_file)
+        if 'split' not in test_cell_df.columns:
+            raise ValueError(f"CSV '{args.test_de_doc_file}' must have a 'split' column")
+        test_df = test_cell_df[test_cell_df['split'] == 'test'].reset_index(drop=True)
+        print(f"Test cell line '{args.test_de_doc_file}': {len(test_df)} test pairs")
+
     embedding_dict = load_embeddings(args.embedding_file, args.embedding_file2)
 
     # Build X_train: (n_valid_train_perts, 3072)

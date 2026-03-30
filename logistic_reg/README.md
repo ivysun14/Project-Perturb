@@ -14,9 +14,17 @@ Each perturbation is represented as a GenePT embedding vector (3072-d). A separa
 | Gene has only one class in training | Always predicts that class with probability 1 |
 | Gene model saw only 2 of 3 classes | Probability for the unseen class is set to 0 at prediction time |
 
+## Modes
+
+### Within-cell-line
+Train and test on splits from the same cell line. Pass a single CSV with a `split` column.
+
+### Cross-cell-line
+Train on the `train` splits of N cell lines, test on the `test` split of a held-out cell line. When the same `(perturbation, gene)` pair appears in multiple training sets, labels are resolved by **majority vote**. Ties are broken at random (seeded by `--random_seed`) and printed as warnings.
+
 ## Scripts
 
-### Fixed C — no cross-validation
+### Within-cell-line — fixed C (no cross-validation)
 
 ```bash
 python -u logistic_reg.py \
@@ -30,7 +38,7 @@ python -u logistic_reg.py \
     --random_seed     305
 ```
 
-### CV-selected C (Long run time)
+### Within-cell-line — CV-selected C (longer run time)
 
 ```bash
 python -u logistic_reg.py \
@@ -44,6 +52,23 @@ python -u logistic_reg.py \
     --max_iter        1000 \
     --random_seed     305
 ```
+
+### Cross-cell-line — train on 3 cell lines, test on the 4th
+
+```bash
+python -u logistic_reg.py \
+    --train_de_doc_files ../data/DE_DOC_jurkat_splitted.csv,../data/DE_DOC_K562_Replogle_splitted.csv,../data/DE_DOC_rpe1_splitted.csv \
+    --test_de_doc_file   ../data/DE_DOC_hepg2_splitted.csv \
+    --embedding_file     ../KNN_vote/data/GenePT_gene_protein_embedding_model_3_text.pickle \
+    --embedding_file2    ../KNN_vote/data/additional_genePT_embeddings.pkl \
+    --dataset_name       cross_hepg2_holdout \
+    --output_dir         results \
+    --Cs                 0.01 \
+    --max_iter           1000 \
+    --random_seed        305
+```
+
+To switch the hold-out cell line, change `--train_de_doc_files` and `--test_de_doc_file` accordingly. The `--train_de_doc_files` argument accepts a comma-separated list of any number of files.
 
 ## Outputs
 
