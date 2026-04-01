@@ -54,7 +54,12 @@ output/concordance/shared_pairs_*.csv
 # Large raw data
 data/
 
+# Plotting
+plotting_scripts/
+data_exploration/
+
 # Others
 STATE/
 SUMMER/
 Scouter/
+claude.md
