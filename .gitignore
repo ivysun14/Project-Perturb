@@ -61,5 +61,10 @@ data_exploration/
 # Others
 STATE/
 SUMMER/
-Scouter/
-claude.md
+CLAUDE.md
+logs/
+*.sh 
+*.csv
+*.h5ad
+*.txt
+*.zip
