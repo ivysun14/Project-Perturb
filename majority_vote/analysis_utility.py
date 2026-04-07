@@ -38,17 +38,27 @@ def resolve_repeats(adata, gene_row="gene_name"):
     groups = {}
     for i, g in enumerate(genes):
         groups.setdefault(g, []).append(i)
-    
-    # take average of columns with repeated gene name
-    X = adata.X.toarray() if hasattr(adata.X, "toarray") else adata.X
-    X_avg = np.stack([X[:, idxs].mean(axis=1) for idxs in groups.values()], axis=1)
+
+    # skip all matrix work if no duplicates exist
+    if all(len(v) == 1 for v in groups.values()):
+        return adata
+
+    # average duplicate columns; operate sparse column-wise to avoid full densification
+    import scipy.sparse as sp
+    X = adata.X
+    is_sparse = sp.issparse(X)
+    cols = []
+    for idxs in groups.values():
+        if is_sparse:
+            col = X[:, idxs[0]]
+            for idx in idxs[1:]:
+                col = col + X[:, idx]
+            cols.append(col / len(idxs))
+        else:
+            cols.append(X[:, idxs].mean(axis=1, keepdims=True))
+    X_new = sp.hstack(cols, format='csr') if is_sparse else np.hstack(cols)
     var_new = adata.var.iloc[[idxs[0] for idxs in groups.values()]].copy()
-    adata = ad.AnnData(
-        X=X_avg,
-        obs=adata.obs.copy(),
-        var=var_new
-    )
-    return adata
+    return ad.AnnData(X=X_new, obs=adata.obs.copy(), var=var_new)
 
 def update_DE_DOC_labels(
     df: pd.DataFrame,
