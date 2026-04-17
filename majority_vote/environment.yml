@@ -25,4 +25,5 @@ dependencies:
     - torch_geometric
     - cell-gears
     - networkx
-    - scouter-learn
+    - arc-state
+    - POT
