@@ -16,7 +16,7 @@ from sklearn.neighbors import NearestNeighbors
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from baseline.analysis_utility import compute_3class_metrics
+from majority_vote.analysis_utility import compute_3class_metrics
 
 
 # Perturbations with no ESM2 embedding (union across all 4 datasets).
@@ -30,6 +30,46 @@ PERTS_NO_ESM2_EMBEDDING: frozenset = frozenset({
     'HIST2H2BF', 'HIST2H3A', 'HIST2H3D', 'IARS', 'KARS', 'LARS', 'MARS',
     'NARS', 'QARS', 'RARS', 'SARS', 'TARS', 'TAZ', 'TWISTNB', 'VARS',
     'WARS', 'WDR92', 'YARS', 'ZNRD1', 'ADSS', 'ATP5MPL', 'FAM122A', 'HIST2H2AB',
+})
+
+
+# Perturbations with no WikiCrow embedding (union across all 4 datasets).
+PERTS_NO_WIKICROW_EMBEDDING: frozenset = frozenset({
+    'AARS', 'AC118549.1', 'ALG1L', 'C12orf45', 'C1orf109', 'C7orf26',
+    'C9orf16', 'CCDC130', 'CCDC144NL', 'CCDC84', 'CD3EAP', 'DARS', 'EPRS',
+    'FAM102B', 'FAM207A', 'FGFR1OP', 'GARS', 'GCOM1', 'H2AFX', 'H2AFZ',
+    'H3F3A', 'HARS', 'HIST1H2AB', 'HIST1H2AE', 'HIST1H2AI', 'HIST1H2BB',
+    'HIST1H2BC', 'HIST1H2BE', 'HIST1H2BJ', 'HIST1H2BL', 'HIST1H2BM',
+    'HIST1H2BN', 'HIST2H2AA3', 'HIST2H2AC', 'HIST2H2BE', 'HIST2H2BF',
+    'HIST2H3A', 'HIST2H3D', 'IARS', 'KARS', 'LARS', 'MRPL1', 'MRPL10',
+    'MRPL11', 'MRPL13', 'MRPL15', 'MRPL18', 'MRPL20', 'MRPL22', 'MRPL23',
+    'MRPL24', 'MRPL28', 'MRPL3', 'MRPL32', 'MRPL33', 'MRPL37', 'MRPL39',
+    'MRPL4', 'MRPL41', 'MRPL42', 'MSRB1', 'MT2A', 'MVD', 'MVK', 'MYC',
+    'NARS', 'NBEAL1', 'NDUFAF5', 'NEDD8-MDP1', 'NELFE', 'NFATC2IP',
+    'NHLRC2', 'NIFK', 'NMT1', 'NOLC1', 'NPB', 'NUMA1', 'NUP107', 'NUP133',
+    'NUP155', 'NUP160', 'NUP205', 'NUP35', 'NUP43', 'NUP54', 'NUP85',
+    'NUP88', 'NUP93', 'OLFML3', 'ORC3', 'PARN', 'PEF1', 'PFDN6', 'PHB',
+    'PLK1', 'PMF1', 'POLA1', 'POLA2', 'PPA1', 'PPME1', 'PRPF38B', 'PRRC2A',
+    'PRSS50', 'PSTK', 'PYROXD1', 'QARS', 'RAD51D', 'RARS', 'RBM14-RBM4',
+    'RGP1', 'RNF113A', 'RNMT', 'RPL10', 'RPL10A', 'RPL11', 'RPL13', 'RPL14',
+    'RPL15', 'RPL17', 'RPL18', 'RPL21', 'RPL23', 'RPL23A', 'RPL24', 'RPL26',
+    'RPL27', 'RPL28', 'RPL29', 'RPL30', 'RPL31', 'RPL32', 'RPL34', 'RPL35',
+    'RPL35A', 'RPL36', 'RPL36A', 'RPL37', 'RPL37A', 'RPL38', 'RPL39',
+    'RPL4', 'RPL41', 'RPL6', 'RPL7', 'RPL7A', 'RPL8', 'RPL9', 'RPLP0',
+    'RPLP1', 'RPS10', 'RPS10-NUDT3', 'RPS11', 'RPS12', 'RPS13', 'RPS14',
+    'RPS15', 'RPS15A', 'RPS17', 'RPS18', 'RPS2', 'RPS20', 'RPS21', 'RPS3',
+    'RPS3A', 'RPS4X', 'RPS7', 'RPS8', 'RPS9', 'SARS', 'SPATA5', 'SPATA5L1',
+    'SRBD1', 'STAT5A', 'TAF3', 'TAZ', 'TBCA', 'TBCC', 'TBP', 'TDGF1',
+    'TEAD3', 'TEN1', 'TFIP11', 'TMEM127', 'TONSL', 'TOP2A', 'TRIM49C',
+    'TRMT6', 'TRRAP', 'TTF2', 'TUBG1', 'TUBGCP4', 'TVP23C', 'TWISTNB',
+    'TXN', 'U2SURP', 'UQCRFS1', 'VARS', 'WARS', 'WDR61', 'WDR92', 'XRCC1',
+    'ZCRB1', 'ZNF720',
+    'ATP5MD', 'C5orf30', 'CARS', 'MARS', 'MRPL17', 'MRPL19', 'MTRNR2L1',
+    'MYB', 'POLR2D', 'RPA3', 'RPL12', 'RPL13A', 'RPL18A', 'RPL19', 'RPS16',
+    'RPS5', 'SUPT20H', 'TARS', 'TFPT', 'YARS', 'ZNRD1',
+    # Additional entries from PerturbQA K562 dataset not covered above.
+    'HSPB11', 'METRNL', 'MTF1', 'NR2E1', 'PAICS', 'PDCL', 'PITPNC1', 'PYGB',
+    'RFK', 'RIF1', 'ST20-MTHFS', 'TLK2', 'TOMM70', 'TRIM28', 'UHRF1BP1',
 })
 
 
@@ -180,80 +220,61 @@ def find_k_nearest_neighbors(query_pert_embeddings: np.ndarray,
     return distances, indices
 
 
-# TODO: Instead of sampling into random classes, do sensitivity analysis
-# such that all uncertain pert-gene pairs are assigned class 1 and 2.
-def run_bootstrap(y_true: np.ndarray,
-                  y_pred: np.ndarray,
-                  uncertain_mask: np.ndarray,
-                  n_bootstrap: int,
-                  random_seed: int,
-                  output_dir: str,
-                  dataset_name: str) -> None:
+def run_sensitivity_analysis(y_true: np.ndarray,
+                              y_pred: np.ndarray,
+                              uncertain_mask: np.ndarray,
+                              output_dir: str,
+                              dataset_name: str,
+                              split_label: str = 'combined') -> None:
     """
-    Bootstrap uncertainty estimation for predictions with uncertain pairs.
+    Sensitivity analysis for uncertain pairs (co-path zero-neighbor fallbacks).
 
-    Uncertain pairs (those that fell back to class 0 (non-DE) because no
-    valid neighbors were available) are re-sampled uniformly from {0, 1, 2}
-    across n_bootstrap trials.  All other predictions are held fixed.
-
-    A large std indicates the reported metrics are sensitive to how those
-    fallback pairs are resolved; a small std means the uncertain pairs are
-    too few or too evenly distributed to meaningfully affect the outcome.
-
-    AUROC is excluded because uncertain pairs always have [1/3, 1/3, 1/3]
-    probabilities, which are constant across trials and do not affect AUROC.
+    Sets all uncertain pairs to class 1 (Up-regulated) and class 2 (Down-regulated)
+    respectively, computing metrics for each scenario. This bounds the range of
+    possible metric values given the uncertain fallbacks, in contrast to random
+    resampling which estimates an average. A large spread between the two scenarios
+    means the metrics are sensitive to how those fallbacks are resolved.
 
     Args:
         y_true: Ground-truth labels, shape (n_samples,)
-        y_pred: Deterministic predictions (uncertain pairs set to class 0), shape (n_samples,)
+        y_pred: Predictions with uncertain pairs set to class 0, shape (n_samples,)
         uncertain_mask: Boolean mask marking uncertain pairs, shape (n_samples,)
-        n_bootstrap: Number of Monte Carlo trials
-        random_seed: Seed for the RNG (for reproducibility)
-        output_dir: Directory to save the trial-level CSV
+        output_dir: Directory to save the results CSV
         dataset_name: Used to name the output file
+        split_label: Identifier for which eval split this is (e.g. 'calib', 'test', 'combined')
     """
     n_uncertain = uncertain_mask.sum()
     n_total = len(y_true)
 
     print(f"\n{'='*70}")
-    print(f"Bootstrap Uncertainty Estimation")
+    print(f"Sensitivity Analysis for Uncertain Pairs ({split_label})")
     print(f"{'='*70}")
     print(f"  Uncertain pairs: {n_uncertain}/{n_total} ({100*n_uncertain/n_total:.1f}%)")
-    print(f"  Bootstrap trials: {n_bootstrap}")
-
-    rng = np.random.default_rng(random_seed)
-    bootstrap_metrics = defaultdict(list)
-    for _ in range(n_bootstrap):
-        y_pred_trial = y_pred.copy()
-        y_pred_trial[uncertain_mask] = rng.integers(0, 3, size=n_uncertain)
-        m = compute_3class_metrics(y_true, y_pred_trial, y_proba=None)
-        for metric_name, val in m.items():
-            bootstrap_metrics[metric_name].append(val)
 
     overall_metrics = ['accuracy', 'balanced_accuracy', 'f1_macro', 'precision_macro', 'recall_macro']
-    per_class_metrics = [
-        f'{stat}_class_{i}'
-        for i in range(3)
-        for stat in ['precision', 'recall', 'f1']
-    ]
-
-    print(f"\n  Overall metrics (mean ± std over {n_bootstrap} trials):")
-    for metric_name in overall_metrics:
-        vals = bootstrap_metrics[metric_name]
-        print(f"    {metric_name}: {np.mean(vals):.4f} ± {np.std(vals):.4f}")
-
     class_names = ['Non-DE', 'Up-regulated', 'Down-regulated']
-    print(f"\n  Per-class metrics (mean ± std over {n_bootstrap} trials):")
-    for i in range(3):
-        print(f"    {class_names[i]} (class {i}):")
-        for stat in ['precision', 'recall', 'f1']:
-            vals = bootstrap_metrics[f'{stat}_class_{i}']
-            print(f"      {stat}: {np.mean(vals):.4f} ± {np.std(vals):.4f}")
+    rows = []
 
-    # Save trial-level results so downstream analysis can compute any summary stat
-    all_summary_metrics = overall_metrics + per_class_metrics
-    bootstrap_df = pd.DataFrame({m: bootstrap_metrics[m] for m in all_summary_metrics})
-    bootstrap_df.index.name = 'trial'
-    bootstrap_path = os.path.join(output_dir, f'{dataset_name}_bootstrap_metrics.csv')
-    bootstrap_df.to_csv(bootstrap_path)
-    print(f"\n  Full bootstrap results saved to {bootstrap_path}")
+    for assigned_class in [1, 2]:
+        y_pred_trial = y_pred.copy()
+        y_pred_trial[uncertain_mask] = assigned_class
+        m = compute_3class_metrics(y_true, y_pred_trial, y_proba=None)
+
+        print(f"\n  All uncertain → class {assigned_class} ({class_names[assigned_class]}):")
+        for metric_name in overall_metrics:
+            print(f"    {metric_name}: {m[metric_name]:.4f}")
+        print(f"  Per-class metrics:")
+        for i in range(3):
+            print(f"    {class_names[i]}: "
+                  f"P={m[f'precision_class_{i}']:.4f}  "
+                  f"R={m[f'recall_class_{i}']:.4f}  "
+                  f"F1={m[f'f1_class_{i}']:.4f}")
+
+        row = dict(m)
+        row['uncertain_assigned_class'] = assigned_class
+        rows.append(row)
+
+    sens_df = pd.DataFrame(rows)
+    sens_path = os.path.join(output_dir, f'{dataset_name}_sensitivity_{split_label}.csv')
+    sens_df.to_csv(sens_path, index=False)
+    print(f"\n  Sensitivity analysis saved to {sens_path}")

@@ -1,30 +1,22 @@
-# data
-data/
-
-# logs
-logs/
-
 # execution script
 *.sh
-
-# results
-error_analysis/
-results/
 
 # environmental variable
 .env
 
 # experiments
-KNN_allPert_expr/
-KNN_perturbQA_expr/
-KNN_transfer_allGene_expr2/
+KNN_full_within_expr/
+KNN_full_cross_expr/
+KNN_perturbQA_within_expr/
+KNN_perturbQA_cross_expr/
+KNN_sensitivity_full_cross_expr/
+KNN_sensitivity_full_within_expr/
+KNN_sensitivity_perturbQA_cross_expr/
+KNN_sensitivity_perturbQA_within_expr/
 
-# currently unsed scripts
-knn_graph.py
-plot_results.py
-
-# documentation
-design_doc.md
+# embedding files
+*.pkl
+*.json
 
 # figures
-figures/
+*.pdf

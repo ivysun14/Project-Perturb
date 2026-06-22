@@ -6,7 +6,7 @@ Weighted KNN classifier for perturbation-gene pair prediction. Builds a 3-class 
 - Class 1: Up-regulated
 - Class 2: Down-regulated
 
-Embedding-based (GenePT, ESM2):
+Embedding-based (GenePT, ESM2, WikiCrow):
   - Distance metric: cosine dissimilarity (1 - cos)
   - Neighbors: found at run time via sklearn NearestNeighbors
   - Voting weight ('distance'): cosine similarity (1 - cosine dissimilarity)
@@ -38,28 +38,30 @@ from sklearn.model_selection import KFold
 from sklearn.metrics import classification_report
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from baseline.analysis_utility import compute_3class_metrics, plot_data_summary
-from baseline.error_utility import run_error_analysis_from_results
+from majority_vote.analysis_utility import compute_3class_metrics, plot_data_summary
+from majority_vote.error_utility import run_error_analysis_from_results
 from analysis_utility import (
     PERTS_NO_ESM2_EMBEDDING,
+    PERTS_NO_WIKICROW_EMBEDDING,
     PERTS_NO_COPATH_NEIGHBORS,
     load_embedding_from_pkl,
     load_copath_neighbors,
     build_embedding_matrix,
     find_k_nearest_neighbors,
-    run_bootstrap,
+    run_sensitivity_analysis,
 )
 
 
-def load_de_doc_file(file_path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def load_de_doc_file(file_path: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Load DE_DOC CSV file and split by pre-existing train/test split.
+    Load DE_DOC CSV file and return the 60/20/20 train/calib/test splits
+    using the 'split_calib' column.
 
     Args:
-        file_path: Path to DE_DOC CSV file with 'split' column
+        file_path: Path to DE_DOC CSV file with 'split_calib' column
 
     Returns:
-        Tuple of (train_df, test_df)
+        Tuple of (train_df, calib_df, test_df)
     """
     df = pd.read_csv(file_path)
 
@@ -69,16 +71,18 @@ def load_de_doc_file(file_path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     print(f"  Up-regulated (1): {(df['label'] == 1).sum()}")
     print(f"  Down-regulated (2): {(df['label'] == 2).sum()}")
 
-    if 'split' not in df.columns:
-        raise ValueError("CSV file does not have train test split!")
+    if 'split_calib' not in df.columns:
+        raise ValueError("CSV file does not have 'split_calib' column!")
 
-    train_df = df[df['split'] == 'train'].copy()
-    test_df = df[df['split'] == 'test'].copy()
+    train_df = df[df['split_calib'] == 'train'].copy()
+    calib_df = df[df['split_calib'] == 'calibration'].copy()
+    test_df  = df[df['split_calib'] == 'test'].copy()
 
-    print(f"Train set: {len(train_df)} pairs ({train_df['pert'].nunique()} perturbations)")
-    print(f"Test set: {len(test_df)} pairs ({test_df['pert'].nunique()} perturbations)")
+    print(f"Train set:       {len(train_df)} pairs ({train_df['pert'].nunique()} perturbations)")
+    print(f"Calibration set: {len(calib_df)} pairs ({calib_df['pert'].nunique()} perturbations)")
+    print(f"Test set:        {len(test_df)} pairs ({test_df['pert'].nunique()} perturbations)")
 
-    return train_df, test_df
+    return train_df, calib_df, test_df
 
 
 def build_log2fc_and_label_matrix(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, Dict[str, int], Dict[str, int]]:
@@ -422,7 +426,13 @@ if __name__ == "__main__":
     parser.add_argument('--de_doc_file', type=str, required=True, help='Path to DE_DOC CSV file (must have split column)')
     parser.add_argument('--embedding_file', type=str, default=None, help='Path to primary embedding pkl file (required unless --copath_file is provided)')
     parser.add_argument('--embedding_file2', type=str, default=None, help='(optional) Path to a second pkl to merge into the primary embedding')
+    parser.add_argument('--embedding_mode', type=str, default=None, choices=['genept', 'esm2', 'wikicrow', 'copath'],
+                        help="Embedding type: 'genept' (no drop set), 'esm2', 'wikicrow', or 'copath'. Required when --embedding_file is provided.")
     parser.add_argument('--copath_file', type=str, default=None, help='Path to gene_copath_neighbors.json produced by precompute_pathways.py; mutually exclusive with --embedding_file')
+    parser.add_argument('--coverage_filter', action='store_true',
+                        help='Restrict all splits to perturbations covered by ALL 4 embedding types '
+                             '(intersection of genept/esm2/wikicrow/copath). Use for sensitivity analysis '
+                             'to ensure apples-to-apples comparison across embedding modes.')
     parser.add_argument('--dataset_name', type=str, required=True, help='Dataset name (for output files)')
     parser.add_argument('--k_values', type=str, default='1,3,5,7,9', help='Comma-separated K values to try (default: 1,3,5,7,9)')
     parser.add_argument('--n_folds', type=int, default=5, help='Number of folds for cross-validation (default: 5)')
@@ -432,7 +442,7 @@ if __name__ == "__main__":
     parser.add_argument('--random_seed', type=int, default=305, help='Random seed for reproducibility (default: 305)')
     parser.add_argument('--output_dir', type=str, default='results', help='Output directory for results (default: results)')
     parser.add_argument('--subsample', type=int, default=None, help='Subsample perturbations per train and test data for quick check of the algorithm (default: None = use all)')
-    parser.add_argument('--n_bootstrap', type=int, default=0, help='Number of bootstrap trials to estimate uncertainty from co-path zero-neighbor fallbacks (default: 0 = disabled)')
+    parser.add_argument('--sensitivity_analysis', action='store_true', help='Run sensitivity analysis for co-path zero-neighbor uncertain pairs (sets uncertain pairs to class 1 and class 2 respectively)')
 
     args = parser.parse_args()
 
@@ -441,6 +451,8 @@ if __name__ == "__main__":
         parser.error("--copath_file and --embedding_file are mutually exclusive")
     if args.copath_file is None and args.embedding_file is None:
         parser.error("One of --embedding_file or --copath_file must be provided")
+    if args.embedding_file is not None and args.embedding_mode is None:
+        parser.error("--embedding_mode (genept or esm2) is required when --embedding_file is provided")
 
     use_copath = args.copath_file is not None
 
@@ -455,29 +467,51 @@ if __name__ == "__main__":
     print(f"Skip CV: {args.skip_cv}")
 
     os.makedirs(args.output_dir, exist_ok=True)
-    train_df, test_df = load_de_doc_file(args.de_doc_file)
+    error_dir = os.path.join(os.path.dirname(args.output_dir) or ".", "error_analysis")
+    os.makedirs(error_dir, exist_ok=True)
+    train_df, calib_df, test_df = load_de_doc_file(args.de_doc_file)
 
     # TESTING PURPOSE ONLY: subsample a small amount of train and test perturbations for quick check
     if args.subsample is not None:
         train_pert = sorted(train_df['pert'].unique())
-        test_pert = sorted(test_df['pert'].unique())
-        train_pert_subsample = train_pert[:args.subsample]
-        test_pert_subsample = test_pert[:args.subsample]
-        train_df = train_df[train_df['pert'].isin(train_pert_subsample)]
-        test_df = test_df[test_df['pert'].isin(test_pert_subsample)]
+        calib_pert = sorted(calib_df['pert'].unique())
+        test_pert  = sorted(test_df['pert'].unique())
+        train_df = train_df[train_df['pert'].isin(train_pert[:args.subsample])]
+        calib_df = calib_df[calib_df['pert'].isin(calib_pert[:args.subsample])]
+        test_df  = test_df[test_df['pert'].isin(test_pert[:args.subsample])]
 
     # Drop perturbations with no embedding / no co-path neighbors for the chosen mode.
-    # The drop sets are pre-computed from logs/check_coverage.txt (union across all datasets).
-    drop_set = PERTS_NO_COPATH_NEIGHBORS if use_copath else PERTS_NO_ESM2_EMBEDDING
-    mode_label = "co-path neighbors" if use_copath else "ESM2 embedding"
-    for split_name, df in [("train", train_df), ("test", test_df)]:
-        dropped = set(df['pert'].unique()) & drop_set
+    # Co-path, ESM2, and WikiCrow use pre-computed static sets; GenePT has full coverage.
+    if use_copath:
+        mode_drop_set = PERTS_NO_COPATH_NEIGHBORS
+        mode_label    = "co-path neighbors"
+    elif args.embedding_mode == 'esm2':
+        mode_drop_set = PERTS_NO_ESM2_EMBEDDING
+        mode_label    = "ESM2 embedding"
+    elif args.embedding_mode == 'wikicrow':
+        mode_drop_set = PERTS_NO_WIKICROW_EMBEDDING
+        mode_label    = "WikiCrow embedding"
+    else:  # genept
+        mode_drop_set = frozenset()
+        mode_label    = "GenePT embedding"
+
+    # With --coverage_filter also drop perts missing from ANY type so all 4
+    # modes are evaluated on the same perturbation set (apples-to-apples).
+    all_drop_set = (PERTS_NO_ESM2_EMBEDDING
+                    | PERTS_NO_WIKICROW_EMBEDDING
+                    | PERTS_NO_COPATH_NEIGHBORS)
+    effective_drop_set = all_drop_set if args.coverage_filter else mode_drop_set
+
+    for split_name, df in [("train", train_df), ("calib", calib_df), ("test", test_df)]:
+        dropped = set(df['pert'].unique()) & effective_drop_set
         if dropped:
             print(f"\nDropping {len(dropped)} {split_name} perturbations with no {mode_label}: "
                   f"{sorted(dropped)}")
-    train_df = train_df[~train_df['pert'].isin(drop_set)]
-    test_df  = test_df[~test_df['pert'].isin(drop_set)]
+    train_df = train_df[~train_df['pert'].isin(effective_drop_set)]
+    calib_df = calib_df[~calib_df['pert'].isin(effective_drop_set)]
+    test_df  = test_df[~test_df['pert'].isin(effective_drop_set)]
     print(f"\nAfter filtering: train={train_df['pert'].nunique()} perts, "
+          f"calib={calib_df['pert'].nunique()} perts, "
           f"test={test_df['pert'].nunique()} perts")
 
     print("\nBuilding log2fc and label matrix from train data...")
@@ -508,7 +542,8 @@ if __name__ == "__main__":
         embedding_matrix = build_embedding_matrix(list(pert_to_idx.keys()), embedding_dict)
         print(f"Embedding matrix shape: {embedding_matrix.shape}")
 
-    plot_data_summary(train_df, test_df, args.dataset_name, output_dir=args.output_dir)
+    eval_combined_df = pd.concat([calib_df, test_df], ignore_index=True)
+    plot_data_summary(train_df, eval_combined_df, args.dataset_name, output_dir=args.output_dir)
 
     if args.skip_cv:
         best_k = args.k
@@ -535,14 +570,15 @@ if __name__ == "__main__":
         print(f"\nCV results saved to {cv_results_path}")
 
     print(f"\n{'='*70}")
-    print(f"Final Prediction on Test Set (K = {best_k})")
+    print(f"Final Prediction (K = {best_k})")
     print(f"{'='*70}")
 
     train_perts = train_df['pert'].unique().tolist()
-    combined_df = pd.concat([train_df, test_df])
 
-    print("\nBuilding combined log2fc and label matrix from train+test df...")
-    _, combined_label_matrix, combined_pert_to_idx, combined_gene_to_idx = build_log2fc_and_label_matrix(combined_df)
+    # Build combined label/embedding matrix across all splits for neighbor lookup
+    all_df = pd.concat([train_df, calib_df, test_df], ignore_index=True)
+    print("\nBuilding combined log2fc and label matrix from all splits...")
+    _, combined_label_matrix, combined_pert_to_idx, combined_gene_to_idx = build_log2fc_and_label_matrix(all_df)
     print(f"Unique perturbations: {len(combined_pert_to_idx)}")
     print(f"Unique genes: {len(combined_gene_to_idx)}")
     print(f"Label matrix shape: {combined_label_matrix.shape} (perturbations × genes)")
@@ -554,99 +590,122 @@ if __name__ == "__main__":
         combined_embedding_matrix = build_embedding_matrix(list(combined_pert_to_idx.keys()), embedding_dict)
         print(f"Combined embedding matrix shape: {combined_embedding_matrix.shape}")
 
-    print(f"\nPredicting on {len(test_df)} test pairs (with probabilities for AUROC)...")
-    y_pred, y_proba, uncertain_mask = predict_knn_batch(
-        df=test_df,
-        label_matrix=combined_label_matrix,
-        pert_to_idx=combined_pert_to_idx,
-        gene_to_idx=combined_gene_to_idx,
-        train_pert_names=train_perts,
-        embedding_matrix=combined_embedding_matrix,
-        k=best_k,
-        weights=args.weights,
-        return_proba=True,
-        verbose=False,
-        copath_neighbors=copath_neighbors,
-        return_uncertain=True,
-    )
-    y_true = test_df['label'].values
-    metrics = compute_3class_metrics(y_true, y_pred, y_proba)
+    def predict_split(df, split_label):
+        print(f"\nPredicting on {len(df)} {split_label} pairs (with probabilities for AUROC)...")
+        return predict_knn_batch(
+            df=df,
+            label_matrix=combined_label_matrix,
+            pert_to_idx=combined_pert_to_idx,
+            gene_to_idx=combined_gene_to_idx,
+            train_pert_names=train_perts,
+            embedding_matrix=combined_embedding_matrix,
+            k=best_k,
+            weights=args.weights,
+            return_proba=True,
+            verbose=False,
+            copath_neighbors=copath_neighbors,
+            return_uncertain=True,
+        )
+
+    y_pred_calib, y_proba_calib, uncertain_calib = predict_split(calib_df, "calibration")
+    y_pred_test,  y_proba_test,  uncertain_test  = predict_split(test_df,  "test")
+
+    y_true_calib    = calib_df['label'].values
+    y_true_test     = test_df['label'].values
+    y_pred_combined = np.concatenate([y_pred_calib, y_pred_test])
+    y_proba_combined = np.concatenate([y_proba_calib, y_proba_test], axis=0)
+    y_true_combined = np.concatenate([y_true_calib, y_true_test])
+    uncertain_combined = np.concatenate([uncertain_calib, uncertain_test])
+
+    metrics_calib    = compute_3class_metrics(y_true_calib,    y_pred_calib,    y_proba_calib)
+    metrics_test     = compute_3class_metrics(y_true_test,     y_pred_test,     y_proba_test)
+    metrics_combined = compute_3class_metrics(y_true_combined, y_pred_combined, y_proba_combined)
+
+    def print_metrics(metrics, header):
+        print(f"\n{'='*70}")
+        print(header)
+        print(f"{'='*70}")
+        print(f"\nBest K: {best_k}")
+        print(f"  Accuracy:          {metrics['accuracy']:.4f}")
+        print(f"  Balanced Accuracy: {metrics['balanced_accuracy']:.4f}")
+        print(f"  Precision (macro): {metrics['precision_macro']:.4f}")
+        print(f"  Recall (macro):    {metrics['recall_macro']:.4f}")
+        print(f"  F1 (macro):        {metrics['f1_macro']:.4f}")
+        if 'auroc_ovr_macro' in metrics:
+            print(f"  AUROC OvR (macro): {metrics['auroc_ovr_macro']:.4f}")
+        print(f"\n  Per-class metrics:")
+        for class_idx in range(3):
+            class_name = ['Non-DE', 'Up-regulated', 'Down-regulated'][class_idx]
+            print(f"  {class_name} (class {class_idx}):")
+            print(f"    Precision: {metrics[f'precision_class_{class_idx}']:.4f}")
+            print(f"    Recall:    {metrics[f'recall_class_{class_idx}']:.4f}")
+            print(f"    F1:        {metrics[f'f1_class_{class_idx}']:.4f}")
+            if f'auroc_ovr_class_{class_idx}' in metrics:
+                print(f"    AUROC OvR: {metrics[f'auroc_ovr_class_{class_idx}']:.4f}")
+
+    print_metrics(metrics_calib,    "RESULTS — Calibration Set (20%)")
+    print_metrics(metrics_test,     "RESULTS — Test Set (20%)")
+    print_metrics(metrics_combined, "RESULTS — Combined Calib + Test Set (40%)")
+
+    for split_label, y_true, y_pred in [
+        ("calib",    y_true_calib,    y_pred_calib),
+        ("test",     y_true_test,     y_pred_test),
+        ("combined", y_true_combined, y_pred_combined),
+    ]:
+        print(f"\n{'='*70}")
+        print(f"Detailed Classification Report — {split_label} Set")
+        print(f"{'='*70}")
+        print(classification_report(
+            y_true, y_pred,
+            target_names=['Non-DE', 'Up-regulated', 'Down-regulated'],
+            zero_division=0
+        ))
+
+    # Save 3 metrics CSVs and 3 predictions CSVs (with per-class probabilities)
+    for split_label, df_split, metrics, y_pred, y_true, y_proba in [
+        ("calib",    calib_df,         metrics_calib,    y_pred_calib,    y_true_calib,    y_proba_calib),
+        ("test",     test_df,          metrics_test,     y_pred_test,     y_true_test,     y_proba_test),
+        ("combined", eval_combined_df, metrics_combined, y_pred_combined, y_true_combined, y_proba_combined),
+    ]:
+        metrics_df = pd.DataFrame([metrics])
+        metrics_df['best_k'] = best_k
+        metrics_df['dataset'] = args.dataset_name
+        metrics_path = os.path.join(args.output_dir, f'{args.dataset_name}_knn_metrics_{split_label}.csv')
+        metrics_df.to_csv(metrics_path, index=False)
+        print(f"Metrics ({split_label}) saved to {metrics_path}")
+
+        pred_df = df_split.copy()
+        pred_df['prediction']  = y_pred
+        pred_df['correct']     = (y_pred == y_true)
+        pred_df['prob_class_0'] = y_proba[:, 0]
+        pred_df['prob_class_1'] = y_proba[:, 1]
+        pred_df['prob_class_2'] = y_proba[:, 2]
+        pred_path = os.path.join(args.output_dir, f'{args.dataset_name}_knn_predictions_{split_label}.csv')
+        pred_df.to_csv(pred_path, index=False)
+        print(f"Predictions ({split_label}) saved to {pred_path}")
+
+    # Sensitivity analysis on combined set for uncertain co-path pairs
+    n_uncertain = uncertain_combined.sum()
+    if args.sensitivity_analysis and n_uncertain > 0:
+        run_sensitivity_analysis(y_true_combined, y_pred_combined, uncertain_combined,
+                                 args.output_dir, args.dataset_name, split_label='combined')
+    elif args.sensitivity_analysis and n_uncertain == 0:
+        print(f"\nUncertain pairs (co-path zero-neighbor fallbacks): 0/{len(y_true_combined)}")
+        print("No uncertain pairs found; sensitivity analysis skipped.")
 
     print(f"\n{'='*70}")
-    print("FINAL RESULTS")
+    print("ERROR ANALYSIS (Combined Calib + Test)")
     print(f"{'='*70}")
-    print(f"\nBest K: {best_k}")
-    print(f"\nOverall metrics:")
-    print(f"  Accuracy:          {metrics['accuracy']:.4f}")
-    print(f"  Balanced Accuracy: {metrics['balanced_accuracy']:.4f}")
-    print(f"  Precision (macro): {metrics['precision_macro']:.4f}")
-    print(f"  Recall (macro):    {metrics['recall_macro']:.4f}")
-    print(f"  F1 (macro):        {metrics['f1_macro']:.4f}")
-    if 'auroc_ovr_macro' in metrics:
-        print(f"  AUROC OvR (macro): {metrics['auroc_ovr_macro']:.4f}")
-
-    print(f"\nPer-class metrics:")
-    for class_idx in range(3):
-        class_name = ['Non-DE', 'Up-regulated', 'Down-regulated'][class_idx]
-        print(f"  {class_name} (class {class_idx}):")
-        print(f"    Precision: {metrics[f'precision_class_{class_idx}']:.4f}")
-        print(f"    Recall:    {metrics[f'recall_class_{class_idx}']:.4f}")
-        print(f"    F1:        {metrics[f'f1_class_{class_idx}']:.4f}")
-        if f'auroc_ovr_class_{class_idx}' in metrics:
-            print(f"    AUROC OvR:      {metrics[f'auroc_ovr_class_{class_idx}']:.4f}")
-
-    print(f"\n{'='*70}")
-    print("Detailed Classification Report")
-    print(f"{'='*70}")
-    print(classification_report(
-        y_true,
-        y_pred,
-        target_names=['Non-DE', 'Up-regulated', 'Down-regulated'],
-        zero_division=0
-    ))
-
-    predictions_df = test_df.copy()
-    predictions_df['prediction'] = y_pred
-    predictions_df['correct'] = (y_pred == y_true)
-    predictions_df['prob_class_0'] = y_proba[:, 0]
-    predictions_df['prob_class_1'] = y_proba[:, 1]
-    predictions_df['prob_class_2'] = y_proba[:, 2]
-    predictions_path = os.path.join(args.output_dir, f'{args.dataset_name}_knn_predictions.csv')
-    predictions_df.to_csv(predictions_path, index=False)
-    print(f"\nPredictions saved to {predictions_path}")
-
-    metrics_df = pd.DataFrame([metrics])
-    metrics_df['best_k'] = best_k
-    metrics_df['dataset'] = args.dataset_name
-    metrics_path = os.path.join(args.output_dir, f'{args.dataset_name}_knn_metrics.csv')
-    metrics_df.to_csv(metrics_path, index=False)
-    print(f"Metrics saved to {metrics_path}")
-
-    # Bootstrap uncertainty estimation for co-path zero-neighbor fallbacks.
-    # Uncertain pairs (zero_nb_set hits) were assigned class 0 deterministically,
-    # but their true class is unknown. By re-sampling them uniformly from {0,1,2}
-    # across many trials, we quantify how much the metric depends on these fallbacks:
-    # a large std means the metric is heavily influenced by the uncertain pairs.
-    n_uncertain = uncertain_mask.sum()
-    if args.n_bootstrap > 0 and n_uncertain > 0:
-        run_bootstrap(y_true, y_pred, uncertain_mask, args.n_bootstrap,
-                      args.random_seed, args.output_dir, args.dataset_name)
-    elif args.n_bootstrap > 0 and n_uncertain == 0:
-        print(f"\nUncertain pairs (co-path zero-neighbor fallbacks): 0/{len(y_true)}")
-        print("No uncertain pairs found; bootstrap skipped.")
-
-    print(f"\n{'='*70}")
-    print("ERROR ANALYSIS")
-    print(f"{'='*70}")
-    test_keys = list(zip(test_df['pert'], test_df['gene']))
+    combined_keys = list(zip(eval_combined_df['pert'], eval_combined_df['gene']))
     run_error_analysis_from_results(
         dataset=args.dataset_name,
-        test_keys=test_keys,
-        predictions=y_pred,
-        true_labels=y_true,
+        test_keys=combined_keys,
+        predictions=y_pred_combined,
+        true_labels=y_true_combined,
         adata=None,
         task_name="3class_KNN",
-        class_names=['Non-DE', 'Up-regulated', 'Down-regulated']
+        class_names=['Non-DE', 'Up-regulated', 'Down-regulated'],
+        output_dir=error_dir,
     )
     print(f"\n{'='*70}")
     print("ANALYSIS COMPLETE\n")

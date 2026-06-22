@@ -34,16 +34,16 @@ from sklearn.model_selection import KFold
 from sklearn.metrics import classification_report
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from baseline.analysis_utility import compute_3class_metrics, plot_data_summary
-from baseline.error_utility import run_error_analysis_from_results
+from majority_vote.analysis_utility import compute_3class_metrics, plot_data_summary
+from majority_vote.error_utility import run_error_analysis_from_results
 from analysis_utility import (
     PERTS_NO_ESM2_EMBEDDING,
+    PERTS_NO_WIKICROW_EMBEDDING,
     PERTS_NO_COPATH_NEIGHBORS,
     load_embedding_from_pkl,
     load_copath_neighbors,
     build_embedding_matrix,
     find_k_nearest_neighbors,
-    run_bootstrap,
 )
 
 
@@ -439,8 +439,9 @@ if __name__ == "__main__":
     parser.add_argument('--doc_file', type=str, required=True, help='Path to PerturbQA DOC CSV file (must have split column)')
     parser.add_argument('--embedding_file', type=str, default=None, help='Path to primary GenePT embedding pkl file')
     parser.add_argument('--embedding_file2', type=str, default=None, help='(optional) Path to a second pkl to merge into the primary GenePT embedding')
-    parser.add_argument('--esm2_file', type=str, default=None, help='Path to ESM2 embedding pkl file; mutually exclusive with --embedding_file and --copath_file')
-    parser.add_argument('--copath_file', type=str, default=None, help='Path to gene_copath_neighbors.json produced by precompute_pathways.py; mutually exclusive with --embedding_file and --esm2_file')
+    parser.add_argument('--esm2_file', type=str, default=None, help='Path to ESM2 embedding pkl file; mutually exclusive with other embedding sources')
+    parser.add_argument('--wikicrow_file', type=str, default=None, help='Path to WikiCrow embedding pkl file; mutually exclusive with other embedding sources')
+    parser.add_argument('--copath_file', type=str, default=None, help='Path to gene_copath_neighbors.json produced by precompute_pathways.py; mutually exclusive with other embedding sources')
     parser.add_argument('--dataset_name', type=str, required=True, help='Dataset name (for output files)')
     parser.add_argument('--k_values', type=str, default='1,3,5,7,9', help='Comma-separated K values to try (default: 1,3,5,7,9)')
     parser.add_argument('--n_folds', type=int, default=5, help='Number of folds for cross-validation (default: 5)')
@@ -450,7 +451,8 @@ if __name__ == "__main__":
     parser.add_argument('--random_seed', type=int, default=305, help='Random seed for reproducibility (default: 305)')
     parser.add_argument('--output_dir', type=str, default='results', help='Output directory for results (default: results)')
     parser.add_argument('--subsample', type=int, default=None, help='Subsample perturbations for a quick algorithm check (default: None = use all)')
-    parser.add_argument('--n_bootstrap', type=int, default=0, help='Number of bootstrap trials for uncertainty estimation on sparse pairs (default: 0 = disabled)')
+    parser.add_argument('--coverage_filter', action='store_true', help='Drop perturbations missing from any of the 4 embedding/neighbor sources (ESM2 ∪ WikiCrow ∪ co-path union drop set) for apples-to-apples sensitivity comparison')
+
 
     args = parser.parse_args()
 
@@ -458,15 +460,17 @@ if __name__ == "__main__":
     n_sources = sum([
         args.embedding_file is not None,
         args.esm2_file is not None,
+        args.wikicrow_file is not None,
         args.copath_file is not None,
     ])
     if n_sources == 0:
-        parser.error("One of --embedding_file, --esm2_file, or --copath_file must be provided.")
+        parser.error("One of --embedding_file, --esm2_file, --wikicrow_file, or --copath_file must be provided.")
     if n_sources > 1:
-        parser.error("--embedding_file, --esm2_file, and --copath_file are mutually exclusive.")
+        parser.error("--embedding_file, --esm2_file, --wikicrow_file, and --copath_file are mutually exclusive.")
 
-    use_copath = args.copath_file is not None
-    use_esm2 = args.esm2_file is not None
+    use_copath   = args.copath_file is not None
+    use_esm2     = args.esm2_file is not None
+    use_wikicrow = args.wikicrow_file is not None
 
     print("="*70)
     print("Weighted KNN Classifier for Perturbation-Gene Prediction")
@@ -476,6 +480,8 @@ if __name__ == "__main__":
         print(f"Mode: co-pathway (Jaccard similarity)")
     elif use_esm2:
         print(f"Mode: ESM2 embedding (cosine similarity)")
+    elif use_wikicrow:
+        print(f"Mode: WikiCrow embedding (cosine similarity)")
     else:
         print(f"Mode: GenePT embedding (cosine similarity)")
     print(f"Weights: {args.weights}")
@@ -498,8 +504,21 @@ if __name__ == "__main__":
 
     # Drop perturbations that have no representation in the chosen embedding/neighbor source.
     # The drop sets are pre-computed from logs/check_coverage.txt (union across all datasets).
-    drop_set = PERTS_NO_COPATH_NEIGHBORS if use_copath else (PERTS_NO_ESM2_EMBEDDING if use_esm2 else frozenset())
-    mode_label = "co-path neighbors" if use_copath else ("ESM2 embedding" if use_esm2 else None)
+    drop_set = (PERTS_NO_COPATH_NEIGHBORS if use_copath else
+                (PERTS_NO_WIKICROW_EMBEDDING if use_wikicrow else
+                 (PERTS_NO_ESM2_EMBEDDING if use_esm2 else frozenset())))
+    mode_label = ("co-path neighbors" if use_copath else
+                  ("WikiCrow embedding" if use_wikicrow else
+                   ("ESM2 embedding" if use_esm2 else None)))
+
+    # For sensitivity analysis: additionally drop any pert missing from any of the 4
+    # embedding/neighbor sources so all modes are evaluated on the same perturbation set.
+    if args.coverage_filter:
+        coverage_drop = PERTS_NO_ESM2_EMBEDDING | PERTS_NO_WIKICROW_EMBEDDING | PERTS_NO_COPATH_NEIGHBORS
+        drop_set = drop_set | coverage_drop
+        print(f"\n[coverage_filter] Dropping union of all embedding drop sets "
+              f"({len(coverage_drop)} perturbations) for apples-to-apples comparison.")
+
     if drop_set:
         for split_name, df in [("train", train_df), ("test", test_df)]:
             dropped = set(df['pert'].unique()) & drop_set
@@ -521,6 +540,11 @@ if __name__ == "__main__":
     elif use_esm2:
         print(f"\nLoading ESM2 embeddings from {args.esm2_file}...")
         embedding_dict = load_embedding_from_pkl(args.esm2_file)
+        print(f"Loaded embeddings for {len(embedding_dict)} genes")
+        copath_neighbors = None
+    elif use_wikicrow:
+        print(f"\nLoading WikiCrow embeddings from {args.wikicrow_file}...")
+        embedding_dict = load_embedding_from_pkl(args.wikicrow_file)
         print(f"Loaded embeddings for {len(embedding_dict)} genes")
         copath_neighbors = None
     else:
@@ -621,6 +645,7 @@ if __name__ == "__main__":
     predictions_df['prob_class_0'] = y_proba[:, 0]
     predictions_df['prob_class_1'] = y_proba[:, 1]
     predictions_df['prob_class_2'] = y_proba[:, 2]
+    predictions_df['zero_neighbor'] = uncertain_mask
     predictions_path = os.path.join(args.output_dir, f'{args.dataset_name}_knn_predictions.csv')
     predictions_df.to_csv(predictions_path, index=False)
     print(f"\nPredictions saved to {predictions_path}")
@@ -632,21 +657,12 @@ if __name__ == "__main__":
     metrics_df.to_csv(metrics_path, index=False)
     print(f"Metrics saved to {metrics_path}")
 
-    # Bootstrap uncertainty estimation: re-sample uncertain pairs (those with no valid
-    # neighbors) uniformly at random across N trials to measure how much the sparse
-    # coverage inflates or deflates each metric.  Deterministic predictions are held fixed.
-    # AUROC is excluded because it depends on probabilities (which are always [1/3,1/3,1/3]
-    # for uncertain pairs and thus constant across trials).
-    n_uncertain = uncertain_mask.sum()
-    if args.n_bootstrap > 0 and n_uncertain > 0:
-        run_bootstrap(y_true, y_pred, uncertain_mask, args.n_bootstrap,
-                      args.random_seed, args.output_dir, args.dataset_name)
-    elif args.n_bootstrap > 0 and n_uncertain == 0:
-        print(f"\nNo uncertain pairs found; bootstrap skipped.")
-
     print(f"\n{'='*70}")
     print("ERROR ANALYSIS")
     print(f"{'='*70}")
+
+    error_analysis_dir = os.path.join(os.path.dirname(args.output_dir), "error_analysis")
+    os.makedirs(error_analysis_dir, exist_ok=True)
 
     test_keys = list(zip(test_df['pert'], test_df['gene']))
     run_error_analysis_from_results(
@@ -656,7 +672,8 @@ if __name__ == "__main__":
         true_labels=y_true,
         adata=None,
         task_name="3class_KNN",
-        class_names=['Non-DE', 'Up-regulated', 'Down-regulated']
+        class_names=['Non-DE', 'Up-regulated', 'Down-regulated'],
+        output_dir=error_analysis_dir,
     )
 
     print(f"\n{'='*70}")
