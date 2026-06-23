@@ -1,3 +1,7 @@
-logs/
-results/
 *.sh
+
+# output files
+logreg_0.01_full_within_expr/
+logreg_0.01_full_cross_expr/
+logreg_0.01_perturbQA_within_expr/
+logreg_0.01_perturbQA_cross_expr/

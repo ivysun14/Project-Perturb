@@ -19,16 +19,18 @@ Classes:
   2 = Down-regulated
 
 Modes:
-  Within-cell-line:  --de_doc_file <single CSV with split column>
+  Within-cell-line:  --de_doc_file <single CSV with split_calib column>
   Cross-cell-line:   --train_de_doc_files <csv1,csv2,csv3> --test_de_doc_file <csv4>
-                     Training sets from multiple cell lines are merged via majority vote.
+                     Training uses train+test splits (80%) of source cell lines.
+                     Evaluation on held-out cell line's calibration, test, and combined.
 
 Input CSV format (from DE_DOC_stats.py):
-  pert, gene, label, split
+  pert, gene, label, split_calib
 """
 
 import os
 import sys
+import json
 import pickle
 import argparse
 import warnings
@@ -39,7 +41,9 @@ from sklearn.metrics import classification_report
 from sklearn.exceptions import ConvergenceWarning
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from majority_vote.analysis_utility import compute_3class_metrics
+from majority_vote.analysis_utility import compute_3class_metrics, plot_data_summary
+from majority_vote.error_utility import run_error_analysis_from_results
+
 
 def load_embeddings(primary_path: str, secondary_path: str = None) -> dict:
     """
@@ -167,7 +171,7 @@ def fit_per_gene_models(X_train: np.ndarray, Y_train: np.ndarray,
                         max_iter: int, random_seed: int) -> dict:
     """
     Fit one multinomial logistic regression per gene column of Y_train,
-    Genes with <2 training observations are skipped. Genes with only one 
+    Genes with <2 training observations are skipped. Genes with only one
     distinct class in training are stored as a constant predictor ('constant', class_int)
     and always predict that class at test time.
 
@@ -180,7 +184,7 @@ def fit_per_gene_models(X_train: np.ndarray, Y_train: np.ndarray,
         max_iter, random_seed: solver hyperparameters
 
     Returns:
-        models: dict mapping gene_name -> fitted LogisticRegressionCV, or 
+        models: dict mapping gene_name -> fitted LogisticRegressionCV, or
                                           ('constant', int) for single-class genes
     """
     models = {}
@@ -243,8 +247,10 @@ def predict_pairs(test_df: pd.DataFrame, models: dict,
                   pert_to_row: dict, X_test: np.ndarray):
     """
     Predict label and probabilities for each (pert, gene) pair in test_df.
-    Pairs whose gene has no fitted model, or whose pert has no embedding,
-    are excluded and flagged.
+
+    - Pairs whose pert has no embedding are dropped (excluded from output).
+    - Pairs whose gene has no fitted model default to class 0 with uniform
+      probabilities [1/3, 1/3, 1/3]; the gene is recorded in no_model_genes.
 
     Args:
         test_df:     DataFrame with columns [pert, gene, label]
@@ -253,12 +259,13 @@ def predict_pairs(test_df: pd.DataFrame, models: dict,
         X_test:      (n_test_perts, m) embedding matrix for test perturbations
 
     Returns:
-        y_pred:     int array of shape (n_valid,)
-        y_proba:    float array of shape (n_valid, 3)
-        valid_mask: bool array of shape (len(test_df),)
+        y_pred:        int array of shape (n_valid,)
+        y_proba:       float array of shape (n_valid, 3)
+        valid_mask:    bool array of shape (len(test_df),); False only for missing-embedding perts
+        no_model_genes: set of gene names that had no fitted model (defaulted to class 0)
     """
-    n_no_model = 0
-    n_no_emb   = 0
+    n_no_emb       = 0
+    no_model_genes = set()
     y_pred_list, y_proba_list, valid = [], [], []
 
     for _, row in test_df.iterrows():
@@ -268,8 +275,10 @@ def predict_pairs(test_df: pd.DataFrame, models: dict,
             valid.append(False)
             continue
         if g not in models:
-            n_no_model += 1
-            valid.append(False)
+            no_model_genes.add(g)
+            y_pred_list.append(0)
+            y_proba_list.append(np.array([1/3, 1/3, 1/3]))
+            valid.append(True)
             continue
         x   = X_test[pert_to_row[p]].reshape(1, -1)
         clf = models[g]
@@ -287,16 +296,18 @@ def predict_pairs(test_df: pd.DataFrame, models: dict,
         y_proba_list.append(proba_full)
         valid.append(True)
 
-    # These are flagged but none of which should happen (at least for within cell line)
     if n_no_emb > 0:
         warnings.warn(f"{n_no_emb} test pairs dropped: perturbation not in embedding dict")
-    if n_no_model > 0:
-        warnings.warn(f"{n_no_model} test pairs dropped: gene had no fitted model (single class or too few training obs)")
+    if no_model_genes:
+        warnings.warn(
+            f"{len(no_model_genes)} gene(s) had no fitted model and defaulted to class 0: "
+            f"{sorted(no_model_genes)}"
+        )
 
     valid_mask = np.array(valid, dtype=bool)
     y_pred  = np.array(y_pred_list, dtype=int)
     y_proba = np.array(y_proba_list, dtype=np.float64)
-    return y_pred, y_proba, valid_mask
+    return y_pred, y_proba, valid_mask, no_model_genes
 
 
 if __name__ == "__main__":
@@ -312,7 +323,7 @@ if __name__ == "__main__":
     )
     # Within-cell-line mode
     parser.add_argument('--de_doc_file', type=str, default=None,
-                        help='(within-cell-line) DE_DOC CSV with columns: pert, gene, label, split')
+                        help='(within-cell-line) DE_DOC CSV with split_calib column')
     # Cross-cell-line mode
     parser.add_argument('--train_de_doc_files', type=str, default=None,
                         help='(cross-cell-line) Comma-separated DE_DOC CSVs for training cell lines')
@@ -351,125 +362,206 @@ if __name__ == "__main__":
     print(f"Max iter:   {args.max_iter}")
     print(f"Output dir: {args.output_dir}")
 
+    error_dir = os.path.join(os.path.dirname(args.output_dir), 'error_analysis')
     os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(error_dir, exist_ok=True)
 
+    # ------------------------------------------------------------------ #
+    # Data loading                                                         #
+    # ------------------------------------------------------------------ #
     if within_mode:
         df = pd.read_csv(args.de_doc_file)
-        if 'split' not in df.columns:
-            raise ValueError("CSV must have a 'split' column ('train'/'test')")
-        train_df = df[df['split'] == 'train'].reset_index(drop=True)
-        test_df  = df[df['split'] == 'test'].reset_index(drop=True)
+        if 'split_calib' not in df.columns:
+            raise ValueError("CSV must have a 'split_calib' column")
+        train_df = df[df['split_calib'] == 'train'].reset_index(drop=True)
+        calib_df = df[df['split_calib'] == 'calibration'].reset_index(drop=True)
+        test_df  = df[df['split_calib'] == 'test'].reset_index(drop=True)
+        print(f"\nTrain: {len(train_df)} pairs  |  Calib: {len(calib_df)}  |  Test: {len(test_df)}")
     else:
-        # Cross-cell-line: merge training sets from multiple cell lines
+        # Cross-cell-line: use train+test (80%) from each source cell line
         train_paths = [p.strip() for p in args.train_de_doc_files.split(',')]
         print(f"\nLoading {len(train_paths)} training cell line file(s):")
         train_dfs = []
         for path in train_paths:
             cell_df = pd.read_csv(path)
-            if 'split' not in cell_df.columns:
-                raise ValueError(f"CSV '{path}' must have a 'split' column")
-            cell_train = cell_df[cell_df['split'] == 'train'].reset_index(drop=True)
-            print(f"  {path}: {len(cell_train)} train pairs")
+            if 'split_calib' not in cell_df.columns:
+                raise ValueError(f"CSV '{path}' must have a 'split_calib' column")
+            cell_train = cell_df[cell_df['split_calib'].isin(['train', 'test'])].reset_index(drop=True)
+            print(f"  {path}: {len(cell_train)} train+test pairs")
             train_dfs.append(cell_train)
 
         print("\nMerging training sets via majority vote ...")
         train_df = merge_train_sets(train_dfs, args.random_seed)
 
         test_cell_df = pd.read_csv(args.test_de_doc_file)
-        if 'split' not in test_cell_df.columns:
-            raise ValueError(f"CSV '{args.test_de_doc_file}' must have a 'split' column")
-        test_df = test_cell_df[test_cell_df['split'] == 'test'].reset_index(drop=True)
-        print(f"Test cell line '{args.test_de_doc_file}': {len(test_df)} test pairs")
+        if 'split_calib' not in test_cell_df.columns:
+            raise ValueError(f"CSV '{args.test_de_doc_file}' must have a 'split_calib' column")
+        calib_df = test_cell_df[test_cell_df['split_calib'] == 'calibration'].reset_index(drop=True)
+        test_df  = test_cell_df[test_cell_df['split_calib'] == 'test'].reset_index(drop=True)
+        print(f"\nTarget calib: {len(calib_df)} pairs  |  Target test: {len(test_df)} pairs")
 
+        # Save unseen genes JSON
+        train_genes_set = set(train_df['gene'].unique())
+        eval_genes_set  = set(pd.concat([calib_df, test_df])['gene'].unique())
+        unseen_genes    = sorted(eval_genes_set - train_genes_set)
+        unseen_path = os.path.join(args.output_dir, f'{args.dataset_name}_transfer_unseen.json')
+        with open(unseen_path, 'w') as f:
+            json.dump({'unseen_genes': unseen_genes, 'n_unseen_genes': len(unseen_genes)}, f, indent=2)
+        print(f"\nUnseen genes (eval only, default class 0): {len(unseen_genes)} — saved to {unseen_path}")
+
+    eval_combined_df = pd.concat([calib_df, test_df], ignore_index=True)
+    plot_data_summary(train_df, eval_combined_df, args.dataset_name, output_dir=error_dir)
+
+    # ------------------------------------------------------------------ #
+    # Build training matrices and fit models                               #
+    # ------------------------------------------------------------------ #
     embedding_dict = load_embeddings(args.embedding_file, args.embedding_file2)
 
-    # Build X_train: (n_valid_train_perts, 3072)
-    train_perts = sorted(train_df['pert'].unique())   # fixed order → rows of X/Y
-    train_genes = sorted(train_df['gene'].unique())   # fixed order → columns of Y
+    train_perts      = sorted(train_df['pert'].unique())
+    train_genes_list = sorted(train_df['gene'].unique())
     print(f"\nBuilding feature matrix X ({len(train_perts)} train perts x 3072) ...")
-    X_train, train_valid_mask, valid_train_perts = build_feature_matrix(train_perts, embedding_dict)
-    print(f"  X_train shape: {X_train.shape}  ({train_valid_mask.sum()} perts with embeddings)")
+    X_train, _, valid_train_perts = build_feature_matrix(train_perts, embedding_dict)
+    print(f"  X_train shape: {X_train.shape}")
 
-    # Build Y_train: (n_valid_train_perts, n_genes)
-    print(f"Building label matrix Y ({len(valid_train_perts)} perts x {len(train_genes)} genes) ...")
-    Y_train = build_label_matrix(train_df, valid_train_perts, train_genes)
+    print(f"Building label matrix Y ({len(valid_train_perts)} perts x {len(train_genes_list)} genes) ...")
+    Y_train = build_label_matrix(train_df, valid_train_perts, train_genes_list)
     n_observed = (~np.isnan(Y_train)).sum()
     print(f"  Y_train shape: {Y_train.shape}  ({n_observed} observed labels, "
           f"{np.isnan(Y_train).sum()} NaN)")
 
-    # Fit one logistic regression per gene
     Cs = [float(c) for c in args.Cs.split(',')]
     print(f"\nFitting per-gene models (Cs={Cs}, cv={args.cv}, max_iter={args.max_iter}) ...")
-    models = fit_per_gene_models(X_train, Y_train, train_genes, Cs, args.cv, args.max_iter, args.random_seed)
+    models = fit_per_gene_models(X_train, Y_train, train_genes_list, Cs, args.cv,
+                                 args.max_iter, args.random_seed)
 
-    # Build X_test: (n_test_perts, 3072)
-    test_perts = sorted(test_df['pert'].unique())
-    print(f"\nBuilding test embedding matrix ({len(test_perts)} test perts) ...")
-    X_test, test_valid_mask, valid_test_perts = build_feature_matrix(test_perts, embedding_dict)
-    pert_to_row = {p: i for i, p in enumerate(valid_test_perts)}
+    # ------------------------------------------------------------------ #
+    # Build a single eval embedding matrix covering all calib+test perts  #
+    # ------------------------------------------------------------------ #
+    all_eval_perts = sorted(eval_combined_df['pert'].unique())
+    print(f"\nBuilding eval embedding matrix ({len(all_eval_perts)} perts) ...")
+    X_eval, _, valid_eval_perts = build_feature_matrix(all_eval_perts, embedding_dict)
+    pert_to_row = {p: i for i, p in enumerate(valid_eval_perts)}
 
-    print(f"\nPredicting {len(test_df)} test pairs ...")
-    y_pred, y_proba, pred_valid_mask = predict_pairs(test_df, models, pert_to_row, X_test)
-    test_df_clean = test_df[pred_valid_mask].reset_index(drop=True)
-    y_true = test_df_clean['label'].values
-    print(f"  Valid predictions: {pred_valid_mask.sum()}/{len(test_df)}")
+    # ------------------------------------------------------------------ #
+    # Predict on calib, test, combined                                     #
+    # ------------------------------------------------------------------ #
+    def predict_split(df, split_label):
+        print(f"\nPredicting on {split_label} set ({len(df)} pairs) ...")
+        y_pred, y_proba, valid_mask, no_model = predict_pairs(df, models, pert_to_row, X_eval)
+        df_clean = df[valid_mask].reset_index(drop=True)
+        y_true   = df_clean['label'].values
+        print(f"  Valid predictions: {valid_mask.sum()}/{len(df)}  "
+              f"(defaulted genes: {len(no_model)})")
+        return y_pred, y_proba, y_true, df_clean, no_model
 
-    metrics = compute_3class_metrics(y_true, y_pred, y_proba)
+    y_pred_calib, y_proba_calib, y_true_calib, calib_clean, no_model_calib = predict_split(calib_df, "calibration")
+    y_pred_test,  y_proba_test,  y_true_test,  test_clean,  no_model_test  = predict_split(test_df,  "test")
 
-    print(f"\n{'='*70}")
-    print("FINAL RESULTS")
-    print(f"{'='*70}")
-    print(f"\nOverall metrics:")
-    print(f"  Accuracy:          {metrics['accuracy']:.4f}")
-    print(f"  Balanced Accuracy: {metrics['balanced_accuracy']:.4f}")
-    print(f"  Precision (macro): {metrics['precision_macro']:.4f}")
-    print(f"  Recall (macro):    {metrics['recall_macro']:.4f}")
-    print(f"  F1 (macro):        {metrics['f1_macro']:.4f}")
-    if 'auroc_ovr_macro' in metrics:
-        print(f"  AUROC OvR (macro): {metrics['auroc_ovr_macro']:.4f}")
+    # Save defaulted genes JSON (union across both eval splits)
+    no_model_genes = sorted(no_model_calib | no_model_test)
+    no_model_path  = os.path.join(args.output_dir, f'{args.dataset_name}_logreg_no_model_genes.json')
+    with open(no_model_path, 'w') as f:
+        json.dump({'no_model_genes': no_model_genes, 'n_no_model_genes': len(no_model_genes)}, f, indent=2)
+    print(f"\nGenes with no fitted model (defaulted to class 0): {len(no_model_genes)} — saved to {no_model_path}")
 
-    print(f"\nPer-class metrics:")
-    for class_idx in range(3):
-        class_name = ['Non-DE', 'Up-regulated', 'Down-regulated'][class_idx]
-        print(f"  {class_name} (class {class_idx}):")
-        print(f"    Precision: {metrics[f'precision_class_{class_idx}']:.4f}")
-        print(f"    Recall:    {metrics[f'recall_class_{class_idx}']:.4f}")
-        print(f"    F1:        {metrics[f'f1_class_{class_idx}']:.4f}")
-        if f'auroc_ovr_class_{class_idx}' in metrics:
-            print(f"    AUROC OvR: {metrics[f'auroc_ovr_class_{class_idx}']:.4f}")
+    y_pred_combined  = np.concatenate([y_pred_calib,  y_pred_test])
+    y_proba_combined = np.concatenate([y_proba_calib, y_proba_test], axis=0)
+    y_true_combined  = np.concatenate([y_true_calib,  y_true_test])
+    combined_clean   = pd.concat([calib_clean, test_clean], ignore_index=True)
 
-    print(f"\n{'='*70}")
-    print("Detailed Classification Report")
-    print(f"{'='*70}")
-    print(classification_report(
-        y_true, y_pred,
-        target_names=['Non-DE', 'Up-regulated', 'Down-regulated'],
-        zero_division=0
-    ))
+    # ------------------------------------------------------------------ #
+    # Metrics and reporting                                                #
+    # ------------------------------------------------------------------ #
+    metrics_calib    = compute_3class_metrics(y_true_calib,    y_pred_calib,    y_proba_calib)
+    metrics_test     = compute_3class_metrics(y_true_test,     y_pred_test,     y_proba_test)
+    metrics_combined = compute_3class_metrics(y_true_combined, y_pred_combined, y_proba_combined)
 
-    # Map each gene to the C chosen by CV (NaN for constant/skipped genes)
-    # If CV is not performed, this will just assign nan to all genes
+    def print_metrics(metrics, header):
+        print(f"\n{'='*70}")
+        print(header)
+        print(f"{'='*70}")
+        print(f"  Accuracy:          {metrics['accuracy']:.4f}")
+        print(f"  Balanced Accuracy: {metrics['balanced_accuracy']:.4f}")
+        print(f"  Precision (macro): {metrics['precision_macro']:.4f}")
+        print(f"  Recall (macro):    {metrics['recall_macro']:.4f}")
+        print(f"  F1 (macro):        {metrics['f1_macro']:.4f}")
+        if 'auroc_ovr_macro' in metrics:
+            print(f"  AUROC OvR (macro): {metrics['auroc_ovr_macro']:.4f}")
+        print(f"\n  Per-class metrics:")
+        for class_idx in range(3):
+            class_name = ['Non-DE', 'Up-regulated', 'Down-regulated'][class_idx]
+            print(f"  {class_name} (class {class_idx}):")
+            print(f"    Precision: {metrics[f'precision_class_{class_idx}']:.4f}")
+            print(f"    Recall:    {metrics[f'recall_class_{class_idx}']:.4f}")
+            print(f"    F1:        {metrics[f'f1_class_{class_idx}']:.4f}")
+            if f'auroc_ovr_class_{class_idx}' in metrics:
+                print(f"    AUROC OvR: {metrics[f'auroc_ovr_class_{class_idx}']:.4f}")
+
+    print_metrics(metrics_calib,    "RESULTS — Calibration Set (20%)")
+    print_metrics(metrics_test,     "RESULTS — Test Set (20%)")
+    print_metrics(metrics_combined, "RESULTS — Combined Calib + Test Set (40%)")
+
+    for split_label, y_true, y_pred in [
+        ("Calibration", y_true_calib,    y_pred_calib),
+        ("Test",        y_true_test,     y_pred_test),
+        ("Combined",    y_true_combined, y_pred_combined),
+    ]:
+        print(f"\n{'='*70}")
+        print(f"Detailed Classification Report — {split_label} Set")
+        print(f"{'='*70}")
+        print(classification_report(
+            y_true, y_pred,
+            target_names=['Non-DE', 'Up-regulated', 'Down-regulated'],
+            zero_division=0
+        ))
+
+    # ------------------------------------------------------------------ #
+    # Save 3 metrics CSVs and 3 predictions CSVs (with probabilities)     #
+    # ------------------------------------------------------------------ #
     gene_to_best_C = {
         gene: float(np.mean(m.C_)) if hasattr(m, 'C_') else np.nan
         for gene, m in models.items()
     }
 
-    predictions_df = test_df_clean.copy()
-    predictions_df['prediction']   = y_pred
-    predictions_df['correct']      = (y_pred == y_true)
-    predictions_df['prob_class_0'] = y_proba[:, 0]
-    predictions_df['prob_class_1'] = y_proba[:, 1]
-    predictions_df['prob_class_2'] = y_proba[:, 2]
-    predictions_df['best_C']       = predictions_df['gene'].map(gene_to_best_C)
-    predictions_path = os.path.join(args.output_dir, f'{args.dataset_name}_logreg_predictions.csv')
-    predictions_df.to_csv(predictions_path, index=False)
-    print(f"\nPredictions saved to {predictions_path}")
+    for split_label, df_clean, metrics, y_pred, y_true, y_proba in [
+        ("calib",    calib_clean,    metrics_calib,    y_pred_calib,    y_true_calib,    y_proba_calib),
+        ("test",     test_clean,     metrics_test,     y_pred_test,     y_true_test,     y_proba_test),
+        ("combined", combined_clean, metrics_combined, y_pred_combined, y_true_combined, y_proba_combined),
+    ]:
+        metrics_df = pd.DataFrame([metrics])
+        metrics_df['dataset'] = args.dataset_name
+        metrics_path = os.path.join(args.output_dir, f'{args.dataset_name}_logreg_metrics_{split_label}.csv')
+        metrics_df.to_csv(metrics_path, index=False)
+        print(f"Metrics ({split_label}) saved to {metrics_path}")
 
-    metrics_df = pd.DataFrame([metrics])
-    metrics_df['dataset'] = args.dataset_name
-    metrics_path = os.path.join(args.output_dir, f'{args.dataset_name}_logreg_metrics.csv')
-    metrics_df.to_csv(metrics_path, index=False)
-    print(f"Metrics saved to {metrics_path}")
+        pred_df = df_clean.copy()
+        pred_df['prediction']   = y_pred
+        pred_df['correct']      = (y_pred == y_true)
+        pred_df['prob_class_0'] = y_proba[:, 0]
+        pred_df['prob_class_1'] = y_proba[:, 1]
+        pred_df['prob_class_2'] = y_proba[:, 2]
+        pred_df['best_C']       = pred_df['gene'].map(gene_to_best_C)
+        pred_path = os.path.join(args.output_dir, f'{args.dataset_name}_logreg_predictions_{split_label}.csv')
+        pred_df.to_csv(pred_path, index=False)
+        print(f"Predictions ({split_label}) saved to {pred_path}")
+
+    # ------------------------------------------------------------------ #
+    # Error analysis on combined calib+test                                #
+    # ------------------------------------------------------------------ #
+    print(f"\n{'='*70}")
+    print("ERROR ANALYSIS (Combined Calib + Test)")
+    print(f"{'='*70}")
+    combined_keys = list(zip(combined_clean['pert'], combined_clean['gene']))
+    run_error_analysis_from_results(
+        dataset=args.dataset_name,
+        test_keys=combined_keys,
+        predictions=y_pred_combined,
+        true_labels=y_true_combined,
+        adata=None,
+        task_name="3class_logreg",
+        class_names=['Non-DE', 'Up-regulated', 'Down-regulated'],
+        output_dir=error_dir,
+    )
 
     print(f"\n{'='*70}")
     print("ANALYSIS COMPLETE")
