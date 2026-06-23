@@ -23,7 +23,6 @@ dependencies:
     - openai
     - python-dotenv
     - torch_geometric
-    - cell-gears
     - networkx
     - arc-state
     - POT

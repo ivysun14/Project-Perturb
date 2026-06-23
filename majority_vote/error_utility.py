@@ -21,7 +21,8 @@ class ErrorAnalyzer:
     Analyze errors from majority vote baseline predictions. Supports both binary and multi-class classification.
     """
 
-    def __init__(self, dataset, test_keys, predictions, true_labels, adata=None, task_name="DE", class_names=None):
+    def __init__(self, dataset, test_keys, predictions, true_labels, adata=None, task_name="DE", class_names=None,
+                 output_dir="error_analysis"):
         """
         Initialize error analyzer.
 
@@ -33,9 +34,11 @@ class ErrorAnalyzer:
             adata: AnnData object (optional, for expression analysis)
             task_name: "DE" or "DOC"
             class_names: Optional list of class names for display (e.g., ['Non-DE', 'Up', 'Down'])
+            output_dir: Directory where error analysis files are written (default: "error_analysis")
         """
 
-        os.makedirs("error_analysis", exist_ok=True)
+        self.error_dir = output_dir
+        os.makedirs(self.error_dir, exist_ok=True)
 
         self.dataset = dataset
         self.test_keys = test_keys
@@ -140,7 +143,7 @@ class ErrorAnalyzer:
             df['error_type'] = error_types
 
         # Save full results
-        output_file = f"error_analysis/{self.dataset}_{self.task_name.lower()}_predictions.csv"
+        output_file = f"{self.error_dir}/{self.dataset}_{self.task_name.lower()}_predictions.csv"
         df.to_csv(output_file, index=False)
         print(f"\nFull predictions with true labels saved to {output_file}")
 
@@ -231,7 +234,7 @@ class ErrorAnalyzer:
         print(df.head(top_k).to_string(index=False))
 
         # Save full results
-        output_file = f"error_analysis/{self.dataset}_{self.task_name.lower()}_gene_errors.csv"
+        output_file = f"{self.error_dir}/{self.dataset}_{self.task_name.lower()}_gene_errors.csv"
         df.to_csv(output_file, index=False)
         print(f"\nFull gene error analysis saved to {output_file}")
 
@@ -322,7 +325,7 @@ class ErrorAnalyzer:
         print(df.head(top_k).to_string(index=False))
 
         # Save full results
-        output_file = f"error_analysis/{self.dataset}_{self.task_name.lower()}_perturbation_errors.csv"
+        output_file = f"{self.error_dir}/{self.dataset}_{self.task_name.lower()}_perturbation_errors.csv"
         df.to_csv(output_file, index=False)
         print(f"\nFull perturbation error analysis saved to {output_file}")
 
@@ -581,8 +584,8 @@ class ErrorAnalyzer:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
             print(f"\nError distribution plots saved to {save_path}")
         else:
-            plt.savefig(f'error_analysis/{self.dataset}_{self.task_name.lower()}_error_analysis.png', dpi=300, bbox_inches='tight')
-            print(f"\nError distribution plots saved to error_analysis/{self.task_name.lower()}_error_analysis.png")
+            plt.savefig(f'{self.error_dir}/{self.dataset}_{self.task_name.lower()}_error_analysis.png', dpi=300, bbox_inches='tight')
+            print(f"\nError distribution plots saved to {self.error_dir}/{self.task_name.lower()}_error_analysis.png")
         
         plt.close()
     
@@ -632,7 +635,8 @@ def run_error_analysis_from_results(
     true_labels,
     adata=None,
     task_name="DE",
-    class_names=None
+    class_names=None,
+    output_dir="error_analysis",
 ):
     """
     Convenience function to run error analysis.
@@ -645,11 +649,13 @@ def run_error_analysis_from_results(
         adata: AnnData object (optional)
         task_name: "DE" or "DOC"
         class_names: Optional list of class names for display (e.g., ['Non-DE', 'Up', 'Down'])
+        output_dir: Directory where error analysis files are written (default: "error_analysis")
 
     Returns:
         ErrorAnalyzer object with results
     """
-    analyzer = ErrorAnalyzer(dataset, test_keys, predictions, true_labels, adata, task_name, class_names)
+    analyzer = ErrorAnalyzer(dataset, test_keys, predictions, true_labels, adata, task_name, class_names,
+                             output_dir=output_dir)
     results = analyzer.run_full_analysis()
     return analyzer, results
 

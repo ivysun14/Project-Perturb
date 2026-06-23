@@ -1,17 +1,12 @@
-# logs
-logs/
-
 # execution files
 *.sh
 
 # experiments
-DE_full_relaxed_0.10_expr/
-DE_full_strict_0.01_expr/
-DE_PerturbQA_expr/
-majority_transfer_allGene_expr/
-majority_transfer_allGene_PerturbQA_expr/
-majority_transfer_overlapGene_PerturbQA_expr/
+DE_full_within_expr/
+DE_full_cross_expr/
+DE_PerturbQA_within_expr/
+DE_PerturbQA_cross_expr/
 
-# results folders
-error_analysis/
-figures/
+# unused scripts
+process_CD4_TCell.py
+binary_de_doc_majority/

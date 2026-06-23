@@ -138,7 +138,7 @@ def update_DE_DOC_labels(
     return df_updated
 
 
-def train_gene_majority_vote(train_data: pd.DataFrame, random_seed: int = None) -> Dict[str, int]:
+def train_gene_majority_vote(train_data: pd.DataFrame, random_seed: int = None) -> tuple:
     """
     Train gene-level majority vote predictor for 3-class problem.
 
@@ -147,7 +147,8 @@ def train_gene_majority_vote(train_data: pd.DataFrame, random_seed: int = None) 
         random_seed: Optional random seed for reproducible tie-breaking
 
     Returns:
-        Dict mapping gene -> majority class (0, 1, or 2)
+        gene_majority: Dict mapping gene -> majority class (0, 1, or 2)
+        gene_proba: Dict mapping gene -> np.ndarray of shape (3,) with class proportions
     """
     if random_seed is not None:
         np.random.seed(random_seed)
@@ -157,14 +158,17 @@ def train_gene_majority_vote(train_data: pd.DataFrame, random_seed: int = None) 
         gene = row['gene']
         label = row['label']
         gene_stats[gene][label] += 1
-    
+
     gene_majority = {}
+    gene_proba = {}
     tied_genes = []
     for gene, counts in gene_stats.items():
+        total = sum(counts.values())
+        gene_proba[gene] = np.array([counts[c] / total for c in range(3)])
+
         max_count = max(counts.values())
         tied_classes = [cls for cls, cnt in counts.items() if cnt == max_count]
         if len(tied_classes) > 1:
-            # Randomly select one class with equal probability
             tied_genes.append((gene, tied_classes, counts))
             majority_class = np.random.choice(tied_classes)
         else:
@@ -182,38 +186,44 @@ def train_gene_majority_vote(train_data: pd.DataFrame, random_seed: int = None) 
     else:
         print(f"\nNo genes with tied majority classes.")
 
-    return gene_majority
+    return gene_majority, gene_proba
 
 
 def predict_from_gene_majority(test_data: pd.DataFrame,
                                 gene_majority: Dict[str, int],
-                                default_pred: int = 0) -> np.ndarray:
+                                gene_proba: Dict[str, np.ndarray],
+                                default_pred: int = 0) -> tuple:
     """
-    Generate predictions based on gene-level majority vote.
+    Generate predictions and per-class probabilities based on gene-level majority vote.
 
     Args:
         test_data: DataFrame with column [gene]
         gene_majority: Dict mapping gene -> majority class
+        gene_proba: Dict mapping gene -> np.ndarray of shape (3,) with class proportions
         default_pred: Default prediction for unseen genes (default: 0)
 
     Returns:
-        Array of predictions
-        Array of boolean mask: predictions[unseen_mask] isolate out only seen gene in test
+        predictions: Array of predicted labels
+        unseen_mask: Boolean array, True where gene was unseen in training
+        probabilities: Array of shape (n_samples, 3); unseen genes get [1/3, 1/3, 1/3]
     """
     predictions = []
+    probabilities = []
     n_unseen = 0
     unseen_mask = []
     for _, row in test_data.iterrows():
         gene = row['gene']
         if gene in gene_majority:
             predictions.append(gene_majority[gene])
+            probabilities.append(gene_proba[gene])
             unseen_mask.append(False)
         else:
             n_unseen += 1
             unseen_mask.append(True)
             predictions.append(default_pred)
+            probabilities.append(np.array([1/3, 1/3, 1/3]))
     print(f"Observed {n_unseen} unseen genes from the training phase in the test set.")
-    return np.array(predictions), np.array(unseen_mask)
+    return np.array(predictions), np.array(unseen_mask), np.array(probabilities)
 
 
 def compute_3class_metrics(y_true: np.ndarray,
