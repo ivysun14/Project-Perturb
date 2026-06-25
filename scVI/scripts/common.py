@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Shared command-line helpers for scVI training and prediction wrappers.
+"""
 
 from __future__ import annotations
 
@@ -110,6 +113,16 @@ def build_env() -> dict[str, str]:
 
 
 def run_command(cmd: list[str], dry_run: bool = False) -> None:
+    """
+    Print and optionally execute a repository-rooted command.
+
+    Parameters
+    ----------
+    cmd : list[str]
+        Command tokens to run.
+    dry_run : bool
+        If True, only print the resolved command.
+    """
     print(format_command(cmd))
     if dry_run:
         return
@@ -117,6 +130,9 @@ def run_command(cmd: list[str], dry_run: bool = False) -> None:
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
+    """
+    Add options shared by train and prediction wrappers.
+    """
     parser.add_argument(
         "--cell-line",
         default=env_default("CELL_LINE"),
@@ -137,6 +153,9 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
 
 
 def add_data_args(parser: argparse.ArgumentParser) -> None:
+    """
+    Add dataset and split-file arguments shared across wrappers.
+    """
     parser.add_argument(
         "--dataset-dir",
         default=env_default("SCVI_DATASET_DIR"),
@@ -166,6 +185,16 @@ def add_data_args(parser: argparse.ArgumentParser) -> None:
 
 
 def resolve_common_paths(args, task: str) -> None:
+    """
+    Fill in cell-line, dataset, split CSV, and split-column defaults.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI namespace to mutate in place.
+    task : str
+        Wrapper task name, used for task-specific defaults.
+    """
     if args.cell_line is None:
         args.cell_line = default_cell_line(task)
     if args.dataset_dir is None:

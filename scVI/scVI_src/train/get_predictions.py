@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+"""
+Prediction export utilities for trained scVI perturbation models.
+This module loads a saved run, filters prediction splits, runs a manual
+inference loop, and writes VAE/scGen-style h5ad files for downstream analysis.
+"""
 
 import argparse
 import logging
@@ -35,6 +40,14 @@ if str(REPO_ROOT) not in sys.path:
 
 
 def parse_args():
+    """
+    Parse command-line options for prediction export.
+
+    Returns
+    -------
+    argparse.Namespace
+        Prediction export arguments, including checkpoint and split overrides.
+    """
     parser = argparse.ArgumentParser(description="Get predictions from a trained PerturbationModel.")
     parser.add_argument("--output_dir", "-o", type=str, required=True)
     parser.add_argument("--checkpoint", "-c", type=str, default="last.ckpt")
@@ -74,6 +87,9 @@ def parse_args():
 
 
 def parse_bool(value) -> bool:
+    """
+    Parse common string and boolean forms into a bool.
+    """
     if isinstance(value, bool):
         return value
     normalized = str(value).strip().lower()
@@ -85,6 +101,9 @@ def parse_bool(value) -> bool:
 
 
 def load_config(cfg_path: str) -> dict:
+    """
+    Load the saved YAML config for a trained run.
+    """
     if not os.path.exists(cfg_path):
         raise FileNotFoundError(f"Could not find config file: {cfg_path}")
     with open(cfg_path, "r") as f:
@@ -106,6 +125,9 @@ def _resolve_split_col(split_df: pd.DataFrame, split_column: str | None) -> str:
 
 
 def select_best_checkpoint(checkpoint_dir: str) -> str:
+    """
+    Select the checkpoint with the lowest val_loss encoded in its filename.
+    """
     best = None
     for name in os.listdir(checkpoint_dir):
         if not name.endswith(".ckpt") or "val_loss" not in name:
@@ -123,6 +145,9 @@ def select_best_checkpoint(checkpoint_dir: str) -> str:
 
 
 def resolve_checkpoint_path(checkpoint_dir: str, checkpoint_name: str) -> str:
+    """
+    Resolve a checkpoint alias, absolute path, exact filename, or partial name.
+    """
     if os.path.isabs(checkpoint_name) and os.path.exists(checkpoint_name):
         return checkpoint_name
     if checkpoint_name == "best":
@@ -168,6 +193,18 @@ def load_control_adata_for_export(
     cell_type_value: str | None = None,
     gene_space: list[str] | None = None,
 ) -> anndata.AnnData:
+    """
+    Load control cells used to anchor exported prediction AnnData objects.
+
+    Parameters
+    ----------
+    dataset_path : str
+        Source h5ad dataset.
+    pert_col : str
+        Observation column containing perturbation labels.
+    control_pert : str
+        Perturbation label used for control cells.
+    """
     adata = anndata.read_h5ad(dataset_path, backed="r")
     try:
         if pert_col not in adata.obs.columns:
@@ -201,6 +238,9 @@ def load_var_frame_for_export(dataset_path: str, gene_space: list[str] | None = 
 
 
 def resolve_export_gene_space(cfg: dict) -> list[str] | None:
+    """
+    Resolve the optional split-defined gene space for within-cell export.
+    """
     data_kwargs = cfg["data"]["kwargs"]
     if not parse_bool(data_kwargs.get("use_split_gene_space", False)):
         return None
@@ -229,6 +269,18 @@ def build_vae_scgen_style_adata(
     cell_type_key: str | None = None,
     var_frame: pd.DataFrame | None = None,
 ) -> anndata.AnnData:
+    """
+    Build an AnnData export containing predictions and optional control cells.
+
+    Parameters
+    ----------
+    matrix : np.ndarray
+        Predicted or true expression matrix.
+    pert_names : list
+        Perturbation label for each matrix row.
+    control_adata : AnnData, optional
+        Control cells to append to the exported object.
+    """
     if control_adata is not None and matrix.shape[1] != control_adata.n_vars:
         raise ValueError(
             f"Prediction matrix width {matrix.shape[1]} does not match control gene dimension {control_adata.n_vars}."
@@ -253,6 +305,9 @@ def build_vae_scgen_style_adata(
 
 
 def validate_prediction_sample_multiplier(value) -> float:
+    """
+    Validate and normalize the prediction sample multiplier.
+    """
     value = float(value)
     if not math.isfinite(value) or value <= 0:
         raise ValueError(f"prediction_sample_multiplier must be a positive finite number, got {value!r}")
@@ -360,6 +415,12 @@ def _sentence_perturbation_name(concat_dataset, sentence: list[int]) -> str:
 
 
 def apply_prediction_sample_multiplier_to_loader(test_loader, multiplier: float) -> None:
+    """
+    Resample test-loader sentences per perturbation before prediction.
+
+    Multipliers below one downsample each perturbation group, while values above
+    one repeat and sample sentences to reach the requested approximate size.
+    """
     sampler = getattr(test_loader, "batch_sampler", None)
     if sampler is None or not hasattr(sampler, "sentences") or not hasattr(sampler, "_create_batches"):
         raise ValueError("test_loader.batch_sampler does not support prediction sample scaling.")
@@ -474,6 +535,12 @@ def _resolve_prediction_toml_path(output_dir: str, toml_name: str | None) -> str
 
 
 def prepare_cross_prediction_toml(cfg_dict: dict, output_dir: str, toml_name: str | None) -> str:
+    """
+    Write a prediction-only Cell Load TOML for cross-cell-line export.
+
+    The generated config selects the held-out test dataset and/or non-held-out
+    calibration datasets requested by the CLI.
+    """
     data_kwargs = cfg_dict["data"]["kwargs"]
     base_toml = data_kwargs.get("toml_config_path")
     if not base_toml:
@@ -749,6 +816,9 @@ def _filter_cross_prediction_by_split(adata, cfg_dict: dict):
 
 
 def apply_cross_split_filter_to_loader(test_loader, cfg_dict: dict) -> None:
+    """
+    Filter cross-mode test-loader sentences to the requested split groups.
+    """
     data_kwargs = cfg_dict["data"]["kwargs"]
     holdout_cell_line = str(cfg_dict["model"]["kwargs"].get("cell_line", cfg_dict.get("name", "")))
     split_csv_path = data_kwargs.get("split_csv_path")
@@ -805,6 +875,22 @@ def export_predictions_manual_h5ad(
     prediction_use_sampling: bool | None = None,
     show_progress: bool = False,
 ) -> None:
+    """
+    Run prediction manually and write h5ad outputs.
+
+    Parameters
+    ----------
+    model
+        Loaded Lightning perturbation model.
+    test_loader
+        Dataloader containing prediction sentences.
+    cfg : dict
+        Run config with data/model kwargs.
+    dataset_path : str
+        Dataset used to recover control cells and var metadata.
+    prediction_dir : str
+        Directory where h5ad files are written.
+    """
     sample_multiplier = validate_prediction_sample_multiplier(
         sample_multiplier if sample_multiplier is not None else cfg["model"]["kwargs"].get("prediction_sample_multiplier", 1)
     )
@@ -1000,6 +1086,9 @@ def export_predictions_manual_h5ad(
 
 
 def main():
+    """
+    Load a trained run, restore the model, and export predictions.
+    """
     args = parse_args()
     config_path = os.path.join(args.output_dir, "config.yaml")
     cfg = load_config(config_path)

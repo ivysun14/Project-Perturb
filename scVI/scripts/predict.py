@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+CLI wrapper for exporting predictions from a trained scVI run.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +18,14 @@ from common import (
 
 
 def parse_args() -> argparse.Namespace:
+    """
+    Parse command-line arguments for prediction export.
+
+    Returns
+    -------
+    argparse.Namespace
+        Prediction wrapper options before path/default resolution.
+    """
     parser = argparse.ArgumentParser(
         description="Export scVI test predictions from a trained run.",
         epilog=(
@@ -49,6 +60,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def prediction_mode_values(mode: str) -> list[str]:
+    """
+    Convert a user-facing prediction mode into backend sampling flags.
+    """
     if mode == "both":
         return ["false", "true"]
     if mode == "sampling":
@@ -57,6 +71,9 @@ def prediction_mode_values(mode: str) -> list[str]:
 
 
 def main() -> None:
+    """
+    Resolve paths, build the export command, and run requested prediction modes.
+    """
     args = parse_args()
     resolve_common_paths(args, task="predict")
     run_dir = resolve_run_dir(args)

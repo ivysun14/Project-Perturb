@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+CLI wrapper for cross-cell-line calibration prediction export.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +11,14 @@ from common import add_common_args, add_data_args, resolve_common_paths, resolve
 
 
 def parse_args() -> argparse.Namespace:
+    """
+    Parse command-line arguments for calibration prediction export.
+
+    Returns
+    -------
+    argparse.Namespace
+        Calibration export options before path/default resolution.
+    """
     parser = argparse.ArgumentParser(
         description="Export cross-cell-line predict_calib predictions from a trained scVI run.",
         epilog=(
@@ -39,6 +50,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def prediction_mode_values(mode: str) -> list[str]:
+    """
+    Convert a user-facing prediction mode into backend sampling flags.
+    """
     if mode == "both":
         return ["false", "true"]
     if mode == "sampling":
@@ -47,6 +61,9 @@ def prediction_mode_values(mode: str) -> list[str]:
 
 
 def main() -> None:
+    """
+    Resolve run paths and export calibration predictions for each requested mode.
+    """
     args = parse_args()
     resolve_common_paths(args, task="predict_calib")
     if args.mode != "cross":

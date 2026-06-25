@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+CLI wrapper for launching scVI training with project defaults.
+"""
 
 from __future__ import annotations
 
@@ -21,6 +24,14 @@ from common import (
 
 
 def parse_args() -> argparse.Namespace:
+    """
+    Parse command-line arguments for a training run.
+
+    Returns
+    -------
+    argparse.Namespace
+        Training wrapper options before path/default resolution.
+    """
     parser = argparse.ArgumentParser(
         description="Launch scVI training with stable data-interface defaults.",
         epilog=(
@@ -64,6 +75,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """
+    Build Hydra overrides and run the underlying training entry point.
+    """
     args = parse_args()
     resolve_common_paths(args, task="train")
 
