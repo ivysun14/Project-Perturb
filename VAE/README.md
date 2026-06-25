@@ -101,7 +101,7 @@ python main.py --cell_line RPE1 --mode cross --stage test \
 
 If training used custom paths, pass the same path arguments again for testing.
 
-## *Prediction on Calibration Set
+## Prediction on Calibration Set
 
 This run exports predictions on perturbations in the calibration set for the follow-up post-calibration step.
 

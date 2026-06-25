@@ -1,11 +1,11 @@
-The scVI implementation code in this repository refers to and is inspired by
+The scVI implementation code is inspired by
 [ArcInstitute/state-reproduce baselines](https://github.com/ArcInstitute/state-reproduce/tree/main/baselines).
 
 # scVI Baseline
 
 ## Overview
 
-This is a scVI-style perturbation prediction baseline for single-cell gene expression. Given a basal/control cell expression profile, a perturbation identity, and optional cell-line/batch covariates, the model predicts the gene expression profile of the perturbed cell. Prediction can be exported either as the distribution mean or as sampled counts from the learned ZINB distribution.
+This is a perturbation prediction baseline based on scVI. Given a basal/control cell expression profile, a perturbation identity, and optional cell-line/batch covariates, the model predicts the gene expression profile of the perturbed cell. Prediction can be exported either as the distribution mean or as sampled counts from the learned ZINB distribution.
 
 For detailed script arguments, run:
 
@@ -140,7 +140,7 @@ python scripts/predict.py --cell-line HepG2 --mode cross \
   --prediction-modes both
 ```
 
-## *Prediction on Calibration Set
+## Prediction on Calibration Set
 
 This run is to export predictions on perturbations in the calibration set (with split label `calibration`) for the follow-up post-calibration.
 
