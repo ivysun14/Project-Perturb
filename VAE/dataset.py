@@ -28,7 +28,7 @@ class Dataset_vae(Dataset):
         x = self.x[idx]
         if sparse.issparse(x):
             x = x.toarray().squeeze()
-        x = torch.tensor(self.x[idx], dtype=torch.float32)
+        x = torch.tensor(x, dtype=torch.float32)
         e = torch.tensor(self.e[idx], dtype=torch.float32)
         return x, e
     

@@ -5,24 +5,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from scipy import sparse
 
-class ResBlock(nn.Module):
-    """
-    Residual fully-connected block used in encoder/decoder.
-    """
-    def __init__(self, dim, dropout=0.1):
-        super().__init__()
-        self.block = nn.Sequential(
-            nn.Linear(dim, dim),
-            nn.LayerNorm(dim),
-            nn.LeakyReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(dim, dim),
-        )
-        self.act = nn.LeakyReLU()
-
-    def forward(self, x):
-        return self.act(x + self.block(x))
-
 class VAEArith(nn.Module):
     """
     Conditional Variational Autoencoder with Latent Arithmetic Transfer.
@@ -57,14 +39,11 @@ class VAEArith(nn.Module):
 
         # Encoder
         self.encoder1 = nn.Sequential(
-            nn.Linear(x_dimension+self.ce_dim, 1024),
+            nn.Linear(x_dimension, 1024),
             nn.LayerNorm(1024),
             nn.LeakyReLU(),
             nn.Dropout(self.dropout_rate),
             nn.Linear(1024, 512),
-            nn.LeakyReLU(),
-            nn.Dropout(self.dropout_rate),
-            ResBlock(512, self.dropout_rate),
         )
         
         self.encoder2 = nn.Sequential(
@@ -72,13 +51,9 @@ class VAEArith(nn.Module):
             nn.LayerNorm(512),
             nn.LeakyReLU(),
             nn.Dropout(self.dropout_rate),
-            nn.Linear(512, 256), 
-            nn.LeakyReLU(), 
-            nn.Dropout(self.dropout_rate),
-            nn.Linear(256, 128),
+            nn.Linear(512, 128),
             nn.LeakyReLU(),
             nn.Dropout(self.dropout_rate),
-            ResBlock(128, self.dropout_rate),
             nn.Linear(128, self.z_dim),
         )
 
@@ -91,11 +66,7 @@ class VAEArith(nn.Module):
             nn.LayerNorm(128),
             nn.LeakyReLU(),
             nn.Dropout(self.dropout_rate),
-            ResBlock(128, self.dropout_rate),
-            nn.Linear(128, 256),
-            nn.LeakyReLU(),
-            nn.Dropout(self.dropout_rate),
-            nn.Linear(256, 512),
+            nn.Linear(128, 512),
         )
 
         self.decoder2 = nn.Sequential(
@@ -103,16 +74,10 @@ class VAEArith(nn.Module):
             nn.LayerNorm(512),
             nn.LeakyReLU(),
             nn.Dropout(self.dropout_rate),
-            ResBlock(512, self.dropout_rate),
             nn.Linear(512, 1024),
-        )
-
-        self.decoder3 = nn.Sequential(
-            nn.Linear(1024+self.ce_dim, 1024),
             nn.LeakyReLU(),
             nn.Dropout(self.dropout_rate),
-            nn.Linear(1024, self.x_dim),
-            nn.ReLU()
+            nn.Linear(1024, self.x_dim)
         )
 
         self.to(self.device)
@@ -120,7 +85,6 @@ class VAEArith(nn.Module):
             self.restore_model()
 
     def _encoder(self, x_in, cond_in):
-        x_in = torch.cat([x_in, cond_in], dim=1)
         h = self.encoder1(x_in)
         h = torch.cat([h, cond_in], dim=1)
         h = self.encoder2(h)
@@ -132,8 +96,6 @@ class VAEArith(nn.Module):
         h = self.decoder1(z_in)
         h = torch.cat([h, cond_in], dim=1)
         h = self.decoder2(h)
-        h = torch.cat([h, cond_in], dim=1)
-        h = self.decoder3(h)
         return h
     
     def _cond_encoder(self, cond, scope="Emb_encoder"):
@@ -235,5 +197,4 @@ class VAEArith(nn.Module):
         predicted_cell = self.reconstruct(pred_z_p, emb_t)
 
         return predicted_cell
-
 

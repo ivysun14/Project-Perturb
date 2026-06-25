@@ -1,0 +1,36 @@
+name: PerturbationDataModule
+kwargs:
+  toml_config_path: null
+  split_csv_path: null
+  dataset_dir: null
+  dataset_name: jurkat
+  cell_type_name: jurkat
+  split_column: split_calib
+  train_split_groups: null
+  test_split_groups: null
+  calib_split_groups: null
+  use_split_gene_space: false
+  split_gene_col: gene
+  dropped_test_perts_json: null
+  train_valid_ratio: 0.1
+  train_valid_seed: null
+  embed_key: null
+  output_space: gene
+  pert_rep: onehot
+  basal_rep: sample
+  num_workers: 8
+  pin_memory: true
+  n_basal_samples: 1
+  basal_mapping_strategy: random
+  should_yield_control_cells: false
+  batch_col: gem_group
+  pert_col: gene
+  cell_type_key: cell_type
+  control_pert: non-targeting
+  map_controls: true # for a control cell, should we use it as the target (learn identity) or sample a control?
+  perturbation_features_file: null
+  store_raw_basal: false
+  int_counts: true
+  is_log1p: false
+  barcode: true
+  use_consecutive_loading: false
