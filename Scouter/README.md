@@ -1,0 +1,1 @@
+We train [Scouter](https://www.nature.com/articles/s43588-025-00912-8) using the official codebase which can be found in this [repo](https://github.com/PancakeZoy/scouter).

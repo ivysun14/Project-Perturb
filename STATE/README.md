@@ -1,0 +1,1 @@
+We train [STATE](https://www.biorxiv.org/content/10.1101/2025.06.26.661135v2) using the official code and CLI which can be found in this [repo](https://github.com/ArcInstitute/state).
