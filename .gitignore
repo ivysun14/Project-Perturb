@@ -54,12 +54,14 @@ output/concordance/shared_pairs_*.csv
 # Large raw data
 data/
 
+# Source packages
+ModifiedScouter_TranScouter/
+
 # Plotting
 plotting_scripts/
 data_exploration/
 
 # Others
-STATE/
 SUMMER/
 CLAUDE.md
 logs/
@@ -68,3 +70,7 @@ logs/
 *.h5ad
 *.txt
 *.zip
+baseline/
+baseline_output/
+table_scripts/
+wikicrow_embeddings/

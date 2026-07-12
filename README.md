@@ -1,10 +1,23 @@
-# Project-Perturb
+# Benchmarking Differential Expression Classification in Single-Cell Perturbation Models
 
-## Goal
+This repository contains codes needed to reproduce analysis in the manuscript.
 
-Benchmark and improve post-prediction calibration techniques for continuous perturbation response models in transcriptomics, with the aim of recovering accurate differential expression (DE) classification from model outputs.
+## Overview
 
----
+There are in total 8 benchmarked methods:
+
+| Method | Code |
+| --- | --- |
+| Perturbation Majority Vote | `majority_vote/` |
+| KNN Classifier | `KNN_vote/` |
+| Regularized Logistic Regression | `logistic_reg/` |
+| Scouter | `Scouter/` |
+| TranScouter | `TranScouter/` |
+| Variational Autoencoder | `VAE/` |
+| scVI | `scVI/` |
+| STATE | `STATE/` |
+
+Environments used to run this project is stored in `environment.yml`.
 
 ## Data Processing Pipeline
 
