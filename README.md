@@ -1,10 +1,10 @@
 # Benchmarking Differential Expression Classification in Single-Cell Perturbation Models
 
-This repository contains codes needed to reproduce analysis in the manuscript.
+This repository contains code needed to reproduce analysis in the manuscript.
 
 ## Overview
 
-There are in total 8 benchmarked methods:
+There are in total 8 benchmarked methods, each wrapped within its own folder:
 
 | Method | Code |
 | --- | --- |
@@ -16,6 +16,10 @@ There are in total 8 benchmarked methods:
 | Variational Autoencoder | `VAE/` |
 | scVI | `scVI/` |
 | STATE | `STATE/` |
+
+For post-prediction distributional calibration, code is stored in `calibration/`.
+
+Exploratory data analysis code in `EDA/`.
 
 Environments used to run this project is stored in `environment.yml`.
 
@@ -49,3 +53,6 @@ python calibration_split.py data/DE_DOC_{dataset}_splitted.csv   # cal_size=0.25
 ```
 
 Outputs: adds `split_calib` column in-place to `data/DE_DOC_{dataset}_splitted.csv`
+
+### NOTE
+Even though there is a calibration split, we did not end up using it in the current version of the benchmark. This split was originally set for tuning calibration-related hyperparameters (ex. sparsity ratio $r$ in sparsity calibration, can see scripts for this in `calibration/tuning/`), but empirical results have found that hyperparameters have negligible effect on calibration performance, so the calibration split was merged into the test split to form the 40% test set for final performance reporting.
