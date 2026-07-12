@@ -1,50 +1,52 @@
 import os
 import sys
-os.chdir('/users/jsun2/Project-Perturb')
 import pandas as pd
 import scanpy as sc
-from scouter import Scouter, ScouterData
 import argparse
 import pickle
 import numpy as np
+import torch
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+sys.path.insert(0, '/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+from majority_vote.analysis_utility import resolve_repeats
+from ModifiedScouter_TranScouter.scouter import Scouter, ScouterData
+
+
+ds_list = ['k562', 'rpe1', 'hepg2', 'jurkat']
+ds_filename = {
+    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/K562_raw.h5ad',
+    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/RPE1_raw.h5ad',
+    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/HepG2_raw.h5ad',
+    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/Jurkat_raw.h5ad',
+}
+ds_csv = {
+    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
+    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
+    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
+    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
+}
+
+os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+parser = argparse.ArgumentParser()
+parser.add_argument("i", type=int, choices=range(len(ds_list)))
+parser.add_argument("--test_run", action="store_true",
+                    help="Subset to small perturbation sets (10 train / 5 calib / 5 test) and cap epochs to 3 for sanity check.")
+args = parser.parse_args()
 
 
 def scread_uniq_genes(ds):
-    raw_ad = sc.read(f"{ds_filename[ds]}.h5ad")
+    raw_ad = sc.read(f'{ds_filename[ds]}')
     var_df = raw_ad.var.copy()
-    var_df["gene_id"] = var_df.index        # assign ENSG to a new column
-    var_df["gene_name"] = var_df["gene_name"].astype(str)
-    var_df = var_df.set_index("gene_name")  # set index as readable gene name
+    var_df['gene_id'] = var_df.index
+    var_df['gene_name'] = var_df['gene_name'].astype(str)
     raw_ad.var = var_df
-
-    # drop duplicated genes (usually just 1)
-    duplicated_genes = raw_ad.var.index.duplicated(keep="first")
-    if duplicated_genes.any():
-        print(
-            f"Dataset {ds}: Duplicated genes in "
-            f"{raw_ad.var_names[duplicated_genes].tolist()}"
-        )
-        raw_ad = raw_ad[:, ~duplicated_genes]
-        
+    raw_ad = resolve_repeats(raw_ad, gene_row='gene_name')
+    raw_ad.var = raw_ad.var.set_index('gene_name')
     return raw_ad
 
-ds_list = ["rpe1", "jurkat", "hepg2", "k562"]
-ds_filename = {
-    'k562':   'data/h5ad_objects/K562_essential_raw_singlecell_01',
-    'rpe1':   'data/h5ad_objects/rpe1_raw_singlecell_01',
-    'hepg2':  'data/h5ad_objects/GSE264667_hepg2_raw_singlecell_01',
-    'jurkat': 'data/h5ad_objects/GSE264667_jurkat_raw_singlecell_01',
-}
-ds_csv = {
-    'k562':   'data/DE_DOC_K562_Replogle_splitted.csv',
-    'rpe1':   'data/DE_DOC_rpe1_splitted.csv',
-    'hepg2':  'data/DE_DOC_hepg2_splitted.csv',
-    'jurkat': 'data/DE_DOC_jurkat_splitted.csv',
-}
-
-parser = argparse.ArgumentParser()
-parser.add_argument("i", type=int, choices=range(len(ds_list)))
-args = parser.parse_args()
 
 ds = ds_list[args.i]
 print(f"Processing {ds}..........................")
@@ -54,6 +56,14 @@ full_de = pd.read_csv(ds_csv[ds])
 test_pert  = full_de[full_de["split_calib"] == "test"].pert.unique().tolist()
 calib_pert = full_de[full_de["split_calib"] == "calibration"].pert.unique().tolist()
 train_pert = full_de[full_de["split_calib"] == "train"].pert.unique().tolist()
+
+# subset perturbations if this is a test run
+if args.test_run:
+    print("TEST RUN: subsetting to 10 train / 5 calib / 5 test perturbations.")
+    train_pert = train_pert[:10]
+    calib_pert = calib_pert[:5]
+    test_pert  = test_pert[:5]
+
 all_perts  = test_pert + calib_pert + train_pert + ["ctrl"]
 
 # process h5ad
@@ -69,8 +79,8 @@ sc.pp.normalize_total(raw_ad, target_sum=1e4, key_added="size_factors")
 sc.pp.log1p(raw_ad)
 
 # each row is an embedding, ctrl get 0-embedding
-embd_path_1 = 'KNN_vote/data/GenePT_gene_protein_embedding_model_3_text.pickle'
-embd_path_2 = 'KNN_vote/data/additional_genePT_embeddings.pkl'
+embd_path_1 = '/home/jsun140/scratchyiqunchen/project_perturb_data/embedding/GenePT_gene_protein_embedding_model_3_text.pickle.'
+embd_path_2 = '/home/jsun140/scratchyiqunchen/project_perturb_data/embedding/additional_genePT_embeddings.pkl'
 with open(embd_path_1, 'rb') as f:
     embd_1 = pd.DataFrame(pickle.load(f)).T
 with open(embd_path_2, 'rb') as f:
@@ -78,20 +88,20 @@ with open(embd_path_2, 'rb') as f:
 ctrl_row = pd.DataFrame([np.zeros(embd_1.shape[1])], columns=embd_1.columns, index=['ctrl'])
 embd = pd.concat([ctrl_row, embd_1, embd_2], axis=0)
 
-filtered_ad = raw_ad[raw_ad.obs.gene.isin(all_perts)].copy()
+filtered_ad = raw_ad[raw_ad.obs.gene.isin(all_perts)].copy() if args.test_run else raw_ad
 
 # gene_ranks calls rank_genes_groups which requires >=2 cells per group
-singleton_perts = filtered_ad.obs.gene.value_counts()
-singleton_perts = singleton_perts[singleton_perts < 2].index.tolist()
-if singleton_perts:
-    print(f"Dropping {len(singleton_perts)} perturbations with <2 cells: {singleton_perts}")
-    filtered_ad = filtered_ad[~filtered_ad.obs.gene.isin(singleton_perts)].copy()
+# singleton_perts = filtered_ad.obs.gene.value_counts()
+# singleton_perts = singleton_perts[singleton_perts < 2].index.tolist()
+# if singleton_perts:
+#     print(f"Dropping {len(singleton_perts)} perturbations with <2 cells: {singleton_perts}")
+#     filtered_ad = filtered_ad[~filtered_ad.obs.gene.isin(singleton_perts)].copy()
 
 # cell counts from original data before any Scouter splitting
 raw_cell_counts = filtered_ad.obs.gene.value_counts()
 
 # run into key error no column "condition", manually setup this key
-filtered_ad.obs['condition'] = filtered_ad.obs['gene']
+# filtered_ad.obs['condition'] = filtered_ad.obs['gene']
 scouterdata = ScouterData(adata=filtered_ad,
                           embd=embd,
                           key_label='gene',
@@ -99,8 +109,8 @@ scouterdata = ScouterData(adata=filtered_ad,
 scouterdata.setup_ad('embd_index')
 
 # add these two lines to bypass error (following Scouter tutorial on Github)
-scouterdata.gene_ranks()
-scouterdata.get_dropout_non_zero_genes()
+# scouterdata.gene_ranks()
+# scouterdata.get_dropout_non_zero_genes()
 
 # hold out both test and calib perts from training
 held_out = test_pert + calib_pert
@@ -109,10 +119,45 @@ scouterdata.split_Train_Val_Test(seed=1, val_ratio=0.2, test_conds=held_out)
 # training
 scouter_model = Scouter(scouterdata)
 scouter_model.model_init()
-scouter_model.train()
+print(scouter_model.network)
+n_params = sum(p.numel() for p in scouter_model.network.parameters())
+print(f"Total parameters: {n_params:,}")
+if args.test_run:
+    scouter_model.train(n_epochs=3)
+else:
+    scouter_model.train()
 
-results_dir = f'Scouter/Scouter/within_cond/prediction/scouter_full/{ds}'
+results_dir = f'Scouter/prediction/{ds}'
 os.makedirs(results_dir, exist_ok=True)
+
+# save model checkpoint
+checkpoint = {
+    'model_state_dict': scouter_model.network.state_dict(),
+    'n_genes': scouter_model.n_genes,
+    'loss_history': scouter_model.loss_history,
+    'best_val_loss': scouter_model.best_val_loss,
+    'ds': ds,
+}
+ckpt_path = f'{results_dir}/{ds}_scouter_checkpoint.pt'
+torch.save(checkpoint, ckpt_path)
+print(f"Model checkpoint saved to {ckpt_path}")
+
+# plot train / val loss curve
+history = scouter_model.loss_history
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.plot(history['train_loss'], label='Train')
+if history['val_loss']:
+    ax.plot(history['val_loss'], label='Val')
+ax.set_xlabel('Epoch')
+ax.set_ylabel('Loss')
+suffix = '_testrun' if args.test_run else ''
+ax.set_title(f'{ds} Scouter loss curve{suffix}')
+ax.legend()
+fig.tight_layout()
+curve_path = f'{results_dir}/{ds}_loss_curve{suffix}.png'
+fig.savefig(curve_path, dpi=150)
+plt.close(fig)
+print(f"Loss curve saved to {curve_path}")
 
 def predict_and_save(pert_list, split_name, ctrl_array, ctrl_labels):
     # make prediction for every perturbation in pert_list

@@ -1,1 +1,0 @@
-Scouter within-cell-line training code used to obtain predictions as well as calibration results on the new 60/20/20 split.

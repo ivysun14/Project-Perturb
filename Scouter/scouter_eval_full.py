@@ -1,7 +1,7 @@
 import os
 import sys
-os.chdir('/users/jsun2/Project-Perturb')
-sys.path.insert(0, 'majority_vote')
+os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+sys.path.insert(0, '/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb/majority_vote')
 import scanpy as sc
 from DE_DOC_stats import compute_de_statistics
 import argparse
@@ -19,11 +19,14 @@ ds, split_type = params[args.i]
 print(f'Processing {ds}_{split_type} ..........................')
 
 # where to find predicted expressions
-pred_dir = f'Scouter/Scouter/within_cond/prediction/scouter_full/{ds}'
+pred_dir = f'Scouter/prediction/{ds}'
 ad_for_de = sc.read_h5ad(f'{pred_dir}/{ds}_{split_type}_pred.h5ad')
+print(ad_for_de)
+print(ad_for_de.var)
+print(ad_for_de.obs)
 
 # where to save discretized DE labels
-save_folder = f'Scouter/Scouter/within_cond/de_label/scouter_full/{ds}'
+save_folder = f'Scouter/de_label/{ds}'
 os.makedirs(save_folder, exist_ok=True)
 
 df = compute_de_statistics(adata=ad_for_de,
