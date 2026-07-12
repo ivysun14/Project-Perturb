@@ -1,0 +1,63 @@
+import os
+import sys
+import argparse
+os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+_root = os.path.abspath('.')
+sys.path.insert(0, _root)
+sys.path.insert(0, os.path.join(_root, 'majority_vote'))
+import pandas as pd
+import scanpy as sc
+from perturb_metrics import compute_all_metrics_from_dfs
+
+ds_list = ['k562', 'rpe1', 'hepg2', 'jurkat']
+QA_DIR  = '/home/jsun140/scratchyiqunchen/project_perturb_data/perturbqa_datasets'
+ds_csv  = {
+    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
+    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
+    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
+    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
+}
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--task_id', type=int, required=True, choices=range(len(ds_list)))
+args = parser.parse_args()
+pred_ds = ds_list[args.task_id]
+print(f'\nProcessing {pred_ds} ..........................')
+
+# exact (pert, gene) pairs from PerturbQA test split of held-out cell line
+qa_de     = pd.read_csv(f'{QA_DIR}/{pred_ds}-de.csv')
+qa_test   = qa_de[qa_de['split'] == 'test'].copy()
+test_pert  = set(qa_test['pert'].unique())
+test_genes = set(qa_test['gene'].unique())
+qa_test['_key'] = qa_test['pert'] + '|||' + qa_test['gene']
+test_key_set = set(qa_test['_key'])
+print(f"Test perts: {len(test_pert)}, Test genes: {len(test_genes)}, Exact test pairs: {len(test_key_set)}")
+
+# ground truth DE labels from DE_DOC CSV, restricted to exact PerturbQA test (pert, gene) pairs
+full_de    = pd.read_csv(ds_csv[pred_ds])
+full_de['_key'] = full_de['pert'] + '|||' + full_de['gene']
+real_de_df = full_de[full_de['_key'].isin(test_key_set)].drop(columns='_key').copy()
+print(f"Ground truth rows: {len(real_de_df)}")
+
+pred_dir   = f'TranScouter/perturbqa_expr/prediction/{pred_ds}'
+de_dir     = f'TranScouter/perturbqa_expr/de_label/{pred_ds}'
+pred_de_df = pd.read_csv(f'{de_dir}/{pred_ds}-test.csv')
+pred_ad    = sc.read_h5ad(f'{pred_dir}/{pred_ds}_test_pred.h5ad')
+real_ad    = sc.read_h5ad(f'{pred_dir}/{pred_ds}_test_real.h5ad')
+
+print(f'pred_ad: {pred_ad.shape}, real_ad: {real_ad.shape}')
+print(f'pred_de_df: {len(pred_de_df)} rows, real_de_df: {len(real_de_df)} rows')
+
+metrics = compute_all_metrics_from_dfs(
+    pred_de_df=pred_de_df,
+    real_de_df=real_de_df,
+    pred_ad=pred_ad,
+    real_ad=real_ad,
+)
+
+os.makedirs('TranScouter/perturbqa_expr/metrics', exist_ok=True)
+results_df = pd.DataFrame([{'pred_ds': pred_ds, **metrics}])
+out_path   = f'TranScouter/perturbqa_expr/metrics/transcouter_metric_{pred_ds}.csv'
+results_df.to_csv(out_path, index=False)
+print(f'\nSaved to {out_path}')
+print(results_df.to_string())
