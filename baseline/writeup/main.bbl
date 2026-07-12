@@ -1,0 +1,52 @@
+\begin{thebibliography}{6}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Adamson et~al.(2016)Adamson, Norman, Jost, Cho, Nu{\~n}ez, Chen,
+  Villalta, Gilbert, Horlbeck, Hein, et~al.]{adamson2016multiplexed}
+Britt Adamson, Thomas~M Norman, Marco Jost, Min~Y Cho, James~K Nu{\~n}ez, Yuwen
+  Chen, Jacqueline~E Villalta, Luke~A Gilbert, Max~A Horlbeck, Marco~Y Hein,
+  et~al.
+\newblock A multiplexed single-cell crispr screening platform enables
+  systematic dissection of the unfolded protein response.
+\newblock \emph{Cell}, 167\penalty0 (7):\penalty0 1867--1882, 2016.
+
+\bibitem[Anonymous(2024)]{anonymous2024synthpert}
+Anonymous.
+\newblock Synthpert: Predicting perturbation effects via synthetic data
+  generation.
+\newblock \emph{arXiv preprint arXiv:2509.25346}, 2024.
+
+\bibitem[Chen et~al.(2023)Chen, Bhattacharya, Bhardwaj, and
+  Zou]{chen2023genept}
+Yiqun Chen, Arnav Bhattacharya, Akshay Bhardwaj, and James Zou.
+\newblock Genept: A simple but effective foundation model for genes and cells
+  built from chatgpt.
+\newblock \emph{bioRxiv}, pages 2023--10, 2023.
+
+\bibitem[Dixit et~al.(2016)Dixit, Parnas, Li, Chen, Fulco, Jerber, Buenrostro,
+  Lander, and Regev]{dixit2016perturb}
+Atray Dixit, Oren Parnas, Biyu Li, Jenny Chen, Charles~P Fulco, Jellert Jerber,
+  Jason~D Buenrostro, Eric~S Lander, and Aviv Regev.
+\newblock Perturb-seq: dissecting molecular circuits with scalable single-cell
+  rna profiling of pooled genetic screens.
+\newblock \emph{Cell}, 167\penalty0 (7):\penalty0 1853--1866, 2016.
+
+\bibitem[Roohani et~al.(2024)Roohani, Huang, and
+  Leskovec]{roohani2024predicting}
+Yusuf Roohani, Kexin Huang, and Jure Leskovec.
+\newblock Predicting transcriptional outcomes of novel multigene perturbations
+  with gears.
+\newblock \emph{Nature Biotechnology}, 42\penalty0 (6):\penalty0 927--935,
+  2024.
+
+\bibitem[Yang et~al.(2024)]{yang2024perturbqa}
+Wenyu Yang et~al.
+\newblock Perturbqa: A benchmark for evaluating language models on perturbation
+  response prediction.
+\newblock \emph{arXiv preprint arXiv:2410.XXXXX}, 2024.
+
+\end{thebibliography}

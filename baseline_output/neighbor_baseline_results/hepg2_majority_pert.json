@@ -1,0 +1,53 @@
+{
+  "dataset": "hepg2",
+  "method": "majority_pert",
+  "accuracy": 0.9600966867574214,
+  "macro_f1": 0.3265473903214114,
+  "macro_precision": 0.32003222891914046,
+  "macro_recall": 0.3333333333333333,
+  "per_class": {
+    "up": {
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "accuracy": 0.0,
+      "support": 76257,
+      "correct": 0
+    },
+    "down": {
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "accuracy": 0.0,
+      "support": 108058,
+      "correct": 0
+    },
+    "not_de": {
+      "f1": 0.9796421709642342,
+      "precision": 0.9600966867574214,
+      "recall": 1.0,
+      "accuracy": 1.0,
+      "support": 4434725,
+      "correct": 4434725
+    }
+  },
+  "logfc_mae": 0.054260312385941374,
+  "logfc_nmae": 0.6222892939407445,
+  "confusion_matrix": [
+    [
+      0,
+      0,
+      76257
+    ],
+    [
+      0,
+      0,
+      108058
+    ],
+    [
+      0,
+      0,
+      4434725
+    ]
+  ]
+}

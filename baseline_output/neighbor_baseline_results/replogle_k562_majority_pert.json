@@ -1,0 +1,53 @@
+{
+  "dataset": "replogle_k562",
+  "method": "majority_pert",
+  "accuracy": 0.9079560204278299,
+  "macro_f1": 0.3172526028575979,
+  "macro_precision": 0.3026520068092766,
+  "macro_recall": 0.3333333333333333,
+  "per_class": {
+    "up": {
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "accuracy": 0.0,
+      "support": 43365,
+      "correct": 0
+    },
+    "down": {
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "accuracy": 0.0,
+      "support": 57403,
+      "correct": 0
+    },
+    "not_de": {
+      "f1": 0.9517578085727937,
+      "precision": 0.9079560204278299,
+      "recall": 1.0,
+      "accuracy": 1.0,
+      "support": 994013,
+      "correct": 994013
+    }
+  },
+  "logfc_mae": 0.08646752868059485,
+  "logfc_nmae": 0.693249099905849,
+  "confusion_matrix": [
+    [
+      0,
+      0,
+      43365
+    ],
+    [
+      0,
+      0,
+      57403
+    ],
+    [
+      0,
+      0,
+      994013
+    ]
+  ]
+}
