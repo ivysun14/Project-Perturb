@@ -12,4 +12,10 @@ var_calibrated/
 var_calibrated_de/
 var_calibrated_metrics/
 logreg_results/
-tuning_results/
+tuning_sparsity/
+sparsity_de/
+sparsity_metrics/
+
+# old scripts
+eval_metrics.py
+eval_metrics.sh

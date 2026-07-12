@@ -6,13 +6,11 @@ Post-DE calibration via multinomial logistic regression.
 A logistic regression is trained on the calibration split to map predicted
 DE features to ground-truth DE labels {0: Non-DE, 1: Up, 2: Down}.
 
-Currently available feature sets
+Feature sets
 ---------------------------------
 v1 : [-log10(p_value), log2FC, freq_de_train]
 v2 : [-log10(p_value), log2FC, freq_de_pred_calib, freq_de_train]
 
-Features
---------
   -log10(p_value)  : from running DE calling on the predicted h5ad
   log2FC           : from the same predicted DE output
   freq_de_train      : per-gene fraction of TRAINING perturbations where the gene
@@ -40,7 +38,6 @@ import warnings
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(_project_root)
 sys.path.append(os.path.join(_project_root, "majority_vote"))
@@ -79,7 +76,7 @@ def _feature_set_v2(df: pd.DataFrame):
     """[-log10(p_value), log2FC, freq_de_pred_calib, freq_de_train]"""
     cols = ["neg_log10_pval", "log2FC", "freq_de_pred_calib", "freq_de_train"]
     return df[cols].values, cols
-
+# ============================================================
 
 def build_gene_features(truth_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -175,21 +172,12 @@ if __name__ == "__main__":
     )
     gene_feats = gene_feats.join(freq_de_pred_calib, how="left").fillna(0.0)
 
-    # fallback for genes unseen in training (cross-cell-line transfer):
-    # use the empirical mean rather than 0 to avoid systematically suppressing DE calls
-    gene_freq_fallback = gene_feats.mean()
-    print(f"  Gene freq fallback (mean): freq_de={gene_freq_fallback['freq_de_train']:.4f}  "
-          f"freq_up={gene_freq_fallback['freq_up_train']:.4f}  "
-          f"freq_down={gene_freq_fallback['freq_down_train']:.4f}")
-
-    # helper: merge predicted DE with gene features and ground truth labels to form
-    # design matrix X and outcome vector y for logistric regression
     def build_split(split_label: str, pred_df: pd.DataFrame):
         """Return (merged_df, X, y, feat_names) for a given split_calib label."""
         truth_split = (truth_df[truth_df["split_calib"] == split_label]
                        [["pert", "gene", "label"]].rename(columns={"label": "y_true"}))
         pred_split = _add_pair_features(pred_df.copy())
-        pred_split = pred_split.merge(gene_feats.reset_index(), on="gene", how="left").fillna(gene_freq_fallback)
+        pred_split = pred_split.merge(gene_feats.reset_index(), on="gene", how="left").fillna(0.0)
         merged = truth_split.merge(pred_split, on=["pert", "gene"], how="inner")
         X, feat_names = _FEATURE_REGISTRY[args.feature_set](merged)
         y = merged["y_true"].values
@@ -201,7 +189,7 @@ if __name__ == "__main__":
     print(f"Features used    : {feat_names}")
     print("\nFitting logistic regression ...")
     clf = LogisticRegression(
-        penalty=None,
+        C=np.inf,
         class_weight="balanced",
         solver="lbfgs",
         max_iter=1000,

@@ -1,7 +1,0 @@
-There are currently scripts for 3 different versions of calibration, though we are mainly just focusing on sparsity and logistic regression calibration for now since variance calibration did not show great performance improvements.
-
-For sparsity and variance calibration, there is a hyperparameter `r` that needs to be tuned. We use the script `tune_calibration.py` to select for the optimal `r` to use on the test set. Hyperparameter choice is done on the calibration set.
-
-After an optimal `r` is determined through `tune_calibration.py`, one can then use the chosen `r` to run `calibrate_sparsity.py` or `calibrate_var.py` to perform calibration on the test set, then run `compute_de.py` and `eval_metrics.py` to get DE performance metrics.
-
-Another slightly different calibration is logistic regression calibration. This is a more model-based calibration that calibrates for the DE calling process rather than calibrating the predicted continuous expressions. The calibrator is a logistic regression model trained on the calibration set, where the model learns to map a given set of features about a perturbation-gene pair to probability of being non-DE (0), up (1), or down (2) regulated. The script can takes in both calibration and test set so that after model fitting, calibration on the test set can be done in-place in the same script (`calibrate_de_logreg.py`).
