@@ -1,4 +1,5 @@
 *.sh
+design.md
 
 # output files
 logreg_0.01_full_within_expr/

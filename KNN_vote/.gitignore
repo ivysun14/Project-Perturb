@@ -20,3 +20,5 @@ KNN_sensitivity_perturbQA_within_expr/
 
 # figures
 *.pdf
+
+design.md
