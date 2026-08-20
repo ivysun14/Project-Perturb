@@ -4,25 +4,25 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11.8
-  - matplotlib
-  - numpy
-  - pandas
-  - seaborn
-  - scikit-learn
-  - statsmodels
-  - pip
+  - matplotlib=3.10.8
+  - numpy=2.4.4
+  - pandas=2.3.3
+  - seaborn=0.13.2
+  - scikit-learn=1.8.0
+  - statsmodels=0.14.6
+  - pip=26.0.1
   - pip:
-    - anndata
-    - torch
-    - scanpy
-    - scipy
-    - gseapy
-    - mygene
-    - beautifulsoup4
-    - html2text
-    - openai
-    - python-dotenv
-    - torch_geometric
-    - networkx
-    - arc-state
-    - POT
+    - anndata==0.12.10
+    - torch==2.11.0
+    - scanpy==1.11.5
+    - scipy==1.17.1
+    - gseapy==1.1.13
+    - mygene==3.2.2
+    - beautifulsoup4==4.14.3
+    - html2text==2025.4.15
+    - openai==2.30.0
+    - python-dotenv==1.2.2
+    - torch_geometric==2.7.0
+    - networkx==3.6.1
+    - arc-state==0.10.2
+    - POT==0.9.6.post1
