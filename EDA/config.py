@@ -5,7 +5,8 @@ Shared dataset configurations for all data exploration scripts.
 """
 
 import os
-_DATA_DIR = "/home/jsun140/scratchyiqunchen/project_perturb_data"
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repository root, resolved from this file's location
+_DATA_DIR = "/projects/ychen756/project_perturb_data"
 
 # Gene universe shared across all models; rows are in the same order as STATE h5ad columns.
 GENE_UNIVERSE_CSV = os.path.join(_DATA_DIR, 'common_gene_universe.csv')
@@ -58,7 +59,7 @@ DATASET_COLORS = {
     'rpe1':   '#3C5488',
 }
 
-_PROJECT_ROOT = '/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb'
+_PROJECT_ROOT = _REPO
 
 # Pre-calibration prediction h5ad paths (pred and real)
 PRED_PATHS = {

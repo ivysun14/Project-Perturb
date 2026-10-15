@@ -1,7 +1,8 @@
 import os
+_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, resolved from this file's location
 import sys
-os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
-sys.path.insert(0, '/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb/majority_vote')
+os.chdir(_REPO)
+sys.path.insert(0, os.path.join(_REPO, 'majority_vote'))
 import scanpy as sc
 from DE_DOC_stats import compute_de_statistics
 import argparse

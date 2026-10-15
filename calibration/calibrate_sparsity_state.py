@@ -1,10 +1,11 @@
 import os
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repository root, resolved from this file's location
 import sys
 import argparse
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+os.chdir(_REPO)
 _root = os.path.abspath('.')
 sys.path.insert(0, _root)
 
@@ -27,7 +28,7 @@ print(f'\n=== {pred_ds} | training ctrl pool: {train_dss} ===')
 
 # Gene universe: maps integer position → gene name (STATE var order)
 gene_universe = pd.read_csv(
-    '/home/jsun140/scratchyiqunchen/project_perturb_data/common_gene_universe.csv',
+    '/projects/ychen756/project_perturb_data/common_gene_universe.csv',
     index_col=0,
 )['gene_name'].tolist()
 

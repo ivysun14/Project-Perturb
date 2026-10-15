@@ -11,13 +11,14 @@ import json
 import scipy.sparse as sp
 import numpy as np
 import os
+_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, resolved from this file's location
 import sys
 import argparse
 import pandas as pd
 import scanpy as sc
 
-os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
-sys.path.insert(0, '/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+os.chdir(_REPO)
+sys.path.insert(0, _REPO)
 from majority_vote.analysis_utility import resolve_repeats
 
 parser = argparse.ArgumentParser()
@@ -26,12 +27,12 @@ args = parser.parse_args()
 
 DS_LIST = ['k562', 'rpe1', 'hepg2', 'jurkat']
 DS_H5AD = {
-    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/K562_raw.h5ad',
-    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/RPE1_raw.h5ad',
-    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/HepG2_raw.h5ad',
-    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/Jurkat_raw.h5ad',
+    'k562':   '/projects/ychen756/project_perturb_data/h5ad_objects/K562_raw.h5ad',
+    'rpe1':   '/projects/ychen756/project_perturb_data/h5ad_objects/RPE1_raw.h5ad',
+    'hepg2':  '/projects/ychen756/project_perturb_data/h5ad_objects/HepG2_raw.h5ad',
+    'jurkat': '/projects/ychen756/project_perturb_data/h5ad_objects/Jurkat_raw.h5ad',
 }
-QA_DIR = '/home/jsun140/scratchyiqunchen/project_perturb_data/perturbqa_datasets'
+QA_DIR = '/projects/ychen756/project_perturb_data/perturbqa_datasets'
 
 TRAIN_DATA_DIR = 'STATE/perturbQA_expr/training_data'
 COVERAGE_DIR = 'STATE/perturbQA_expr/pert_coverage'
@@ -52,7 +53,7 @@ def scread_uniq_genes(ds):
 
 
 # gene universe = 1337 common gene space shared across all cross-condition methods
-GENE_UNIVERSE_CSV = '/home/jsun140/scratchyiqunchen/project_perturb_data/common_gene_universe_QA.csv'
+GENE_UNIVERSE_CSV = '/projects/ychen756/project_perturb_data/common_gene_universe_QA.csv'
 common_genes = pd.read_csv(GENE_UNIVERSE_CSV)['gene_name'].tolist()
 print(f"PerturbQA common gene universe: {len(common_genes)} genes")
 

@@ -1,30 +1,31 @@
 import scipy.sparse as sp
 import numpy as np
 import os
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repository root, resolved from this file's location
 import sys
 import argparse
 import pandas as pd
 import scanpy as sc
-sys.path.insert(0, '/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+sys.path.insert(0, _REPO)
 from majority_vote.analysis_utility import resolve_repeats
 
-os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+os.chdir(_REPO)
 parser = argparse.ArgumentParser()
 parser.add_argument('--pred_ds', type=str, default=None, help='Single held-out cell line to process. If omitted, runs all 4.')
 args = parser.parse_args()
 
 ds_list = ['k562', 'rpe1', 'hepg2', 'jurkat']
 ds_filename = {
-    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/K562_raw.h5ad',
-    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/RPE1_raw.h5ad',
-    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/HepG2_raw.h5ad',
-    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/Jurkat_raw.h5ad',
+    'k562':   '/projects/ychen756/project_perturb_data/h5ad_objects/K562_raw.h5ad',
+    'rpe1':   '/projects/ychen756/project_perturb_data/h5ad_objects/RPE1_raw.h5ad',
+    'hepg2':  '/projects/ychen756/project_perturb_data/h5ad_objects/HepG2_raw.h5ad',
+    'jurkat': '/projects/ychen756/project_perturb_data/h5ad_objects/Jurkat_raw.h5ad',
 }
 ds_csv = {
-    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
-    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
-    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
-    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
+    'k562':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
+    'rpe1':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
+    'hepg2':  '/projects/ychen756/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
+    'jurkat': '/projects/ychen756/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
 }
 out_dir = 'STATE/training_data'
 os.makedirs(out_dir, exist_ok=True)

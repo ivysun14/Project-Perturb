@@ -6,6 +6,8 @@ in the K562, Jurkat, RPE1, and HepG2 datasets. GenePT is assumed to have full
 coverage. Run from KNN_vote/.
 """
 
+import os
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repository root, resolved from this file's location
 import json
 import pickle
 import pandas as pd
@@ -15,9 +17,9 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from pathlib import Path
 
-DATA_DIR    = Path("/home/jsun140/scratchyiqunchen/project_perturb_data/csv")
-KNN_DIR     = Path("/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb/KNN_vote")
-WIKICROW_DIR = Path("/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb/wikicrow_embeddings")
+DATA_DIR    = Path("/projects/ychen756/project_perturb_data/csv")
+KNN_DIR     = Path(os.path.join(_REPO, 'KNN_vote'))
+WIKICROW_DIR = Path("/projects/ychen756/project_perturb_data/embedding/wikicrow_embeddings")
 
 DATASETS = {
     "K562":   DATA_DIR / "DE_DOC_K562_splitted.csv",

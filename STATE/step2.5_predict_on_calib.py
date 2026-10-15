@@ -1,5 +1,6 @@
 import subprocess
 import os
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repository root, resolved from this file's location
 import sys
 import json
 import argparse
@@ -10,7 +11,7 @@ import scipy.sparse as sp
 import scanpy as sc
 import anndata as ad
 
-os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+os.chdir(_REPO)
 sys.path.insert(0, 'majority_vote')
 sys.path.insert(0, '.')
 from analysis_utility import resolve_repeats
@@ -25,16 +26,16 @@ train_ds = [ds for ds in ds_list if ds != pred_ds]
 out_dir  = f'STATE/results/{pred_ds}'
 
 ds_csv = {
-    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
-    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
-    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
-    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
+    'k562':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
+    'rpe1':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
+    'hepg2':  '/projects/ychen756/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
+    'jurkat': '/projects/ychen756/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
 }
 ds_h5ad = {
-    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/K562_raw.h5ad',
-    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/RPE1_raw.h5ad',
-    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/HepG2_raw.h5ad',
-    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/Jurkat_raw.h5ad',
+    'k562':   '/projects/ychen756/project_perturb_data/h5ad_objects/K562_raw.h5ad',
+    'rpe1':   '/projects/ychen756/project_perturb_data/h5ad_objects/RPE1_raw.h5ad',
+    'hepg2':  '/projects/ychen756/project_perturb_data/h5ad_objects/HepG2_raw.h5ad',
+    'jurkat': '/projects/ychen756/project_perturb_data/h5ad_objects/Jurkat_raw.h5ad',
 }
 
 # common gene universe

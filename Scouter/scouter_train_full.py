@@ -1,4 +1,5 @@
 import os
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repository root, resolved from this file's location
 import sys
 import pandas as pd
 import scanpy as sc
@@ -10,26 +11,26 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-sys.path.insert(0, '/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+sys.path.insert(0, _REPO)
 from majority_vote.analysis_utility import resolve_repeats
 from ModifiedScouter_TranScouter.scouter import Scouter, ScouterData
 
 
 ds_list = ['k562', 'rpe1', 'hepg2', 'jurkat']
 ds_filename = {
-    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/K562_raw.h5ad',
-    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/RPE1_raw.h5ad',
-    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/HepG2_raw.h5ad',
-    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/Jurkat_raw.h5ad',
+    'k562':   '/projects/ychen756/project_perturb_data/h5ad_objects/K562_raw.h5ad',
+    'rpe1':   '/projects/ychen756/project_perturb_data/h5ad_objects/RPE1_raw.h5ad',
+    'hepg2':  '/projects/ychen756/project_perturb_data/h5ad_objects/HepG2_raw.h5ad',
+    'jurkat': '/projects/ychen756/project_perturb_data/h5ad_objects/Jurkat_raw.h5ad',
 }
 ds_csv = {
-    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
-    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
-    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
-    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
+    'k562':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
+    'rpe1':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
+    'hepg2':  '/projects/ychen756/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
+    'jurkat': '/projects/ychen756/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
 }
 
-os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+os.chdir(_REPO)
 parser = argparse.ArgumentParser()
 parser.add_argument("i", type=int, choices=range(len(ds_list)))
 parser.add_argument("--test_run", action="store_true",
@@ -79,8 +80,8 @@ sc.pp.normalize_total(raw_ad, target_sum=1e4, key_added="size_factors")
 sc.pp.log1p(raw_ad)
 
 # each row is an embedding, ctrl get 0-embedding
-embd_path_1 = '/home/jsun140/scratchyiqunchen/project_perturb_data/embedding/GenePT_gene_protein_embedding_model_3_text.pickle.'
-embd_path_2 = '/home/jsun140/scratchyiqunchen/project_perturb_data/embedding/additional_genePT_embeddings.pkl'
+embd_path_1 = '/projects/ychen756/project_perturb_data/embedding/GenePT_gene_protein_embedding_model_3_text.pickle.'
+embd_path_2 = '/projects/ychen756/project_perturb_data/embedding/additional_genePT_embeddings.pkl'
 with open(embd_path_1, 'rb') as f:
     embd_1 = pd.DataFrame(pickle.load(f)).T
 with open(embd_path_2, 'rb') as f:

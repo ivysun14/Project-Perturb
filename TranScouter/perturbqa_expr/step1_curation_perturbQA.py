@@ -1,4 +1,5 @@
 import os
+_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, resolved from this file's location
 import sys
 import argparse
 import numpy as np
@@ -6,20 +7,20 @@ import pandas as pd
 import scanpy as sc
 import scipy.sparse as sp
 
-sys.path.insert(0, '/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+sys.path.insert(0, _REPO)
 from majority_vote.analysis_utility import resolve_repeats
 
-os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+os.chdir(_REPO)
 
 ds_list = ['k562', 'rpe1', 'hepg2', 'jurkat']
 ds_filename = {
-    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/K562_raw.h5ad',
-    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/RPE1_raw.h5ad',
-    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/HepG2_raw.h5ad',
-    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/Jurkat_raw.h5ad',
+    'k562':   '/projects/ychen756/project_perturb_data/h5ad_objects/K562_raw.h5ad',
+    'rpe1':   '/projects/ychen756/project_perturb_data/h5ad_objects/RPE1_raw.h5ad',
+    'hepg2':  '/projects/ychen756/project_perturb_data/h5ad_objects/HepG2_raw.h5ad',
+    'jurkat': '/projects/ychen756/project_perturb_data/h5ad_objects/Jurkat_raw.h5ad',
 }
-QA_DIR      = '/home/jsun140/scratchyiqunchen/project_perturb_data/perturbqa_datasets'
-GENE_UNIVERSE = '/home/jsun140/scratchyiqunchen/project_perturb_data/common_gene_universe_QA.csv'
+QA_DIR      = '/projects/ychen756/project_perturb_data/perturbqa_datasets'
+GENE_UNIVERSE = '/projects/ychen756/project_perturb_data/common_gene_universe_QA.csv'
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--pred_ds', type=str, required=True, choices=ds_list,

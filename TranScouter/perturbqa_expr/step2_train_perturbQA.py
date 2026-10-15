@@ -1,4 +1,5 @@
 import os
+_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, resolved from this file's location
 import sys
 import gc
 import argparse
@@ -14,22 +15,22 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 
-sys.path.insert(0, '/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
-sys.path.insert(0, '/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb/ModifiedScouter_TranScouter/TranScouter')
+sys.path.insert(0, _REPO)
+sys.path.insert(0, os.path.join(_REPO, 'ModifiedScouter_TranScouter/TranScouter'))
 from majority_vote.analysis_utility import resolve_repeats
 from transcouter import TranScouter, ScouterData
 
 ds_list = ['k562', 'rpe1', 'hepg2', 'jurkat']
 ds_filename = {
-    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/K562_raw.h5ad',
-    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/RPE1_raw.h5ad',
-    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/HepG2_raw.h5ad',
-    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/h5ad_objects/Jurkat_raw.h5ad',
+    'k562':   '/projects/ychen756/project_perturb_data/h5ad_objects/K562_raw.h5ad',
+    'rpe1':   '/projects/ychen756/project_perturb_data/h5ad_objects/RPE1_raw.h5ad',
+    'hepg2':  '/projects/ychen756/project_perturb_data/h5ad_objects/HepG2_raw.h5ad',
+    'jurkat': '/projects/ychen756/project_perturb_data/h5ad_objects/Jurkat_raw.h5ad',
 }
-QA_DIR      = '/home/jsun140/scratchyiqunchen/project_perturb_data/perturbqa_datasets'
-GENE_UNIVERSE = '/home/jsun140/scratchyiqunchen/project_perturb_data/common_gene_universe_QA.csv'
+QA_DIR      = '/projects/ychen756/project_perturb_data/perturbqa_datasets'
+GENE_UNIVERSE = '/projects/ychen756/project_perturb_data/common_gene_universe_QA.csv'
 
-os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+os.chdir(_REPO)
 parser = argparse.ArgumentParser()
 parser.add_argument('--pred_ds', type=str, required=True, choices=ds_list,
                     help='Held-out cell line for cross-condition prediction.')
@@ -110,8 +111,8 @@ qa_genes    = pd.read_csv(GENE_UNIVERSE)['gene_name'].tolist()
 combined_ad = sc.read_h5ad(f'TranScouter/perturbqa_expr/training_data/combined_for_{pred_ds}.h5ad')
 print(f"Combined AnnData loaded: {combined_ad.shape}")
 
-embd_path_1 = '/home/jsun140/scratchyiqunchen/project_perturb_data/embedding/GenePT_gene_protein_embedding_model_3_text.pickle.'
-embd_path_2 = '/home/jsun140/scratchyiqunchen/project_perturb_data/embedding/additional_genePT_embeddings.pkl'
+embd_path_1 = '/projects/ychen756/project_perturb_data/embedding/GenePT_gene_protein_embedding_model_3_text.pickle.'
+embd_path_2 = '/projects/ychen756/project_perturb_data/embedding/additional_genePT_embeddings.pkl'
 with open(embd_path_1, 'rb') as f:
     embd_1 = pd.DataFrame(pickle.load(f)).T
 with open(embd_path_2, 'rb') as f:

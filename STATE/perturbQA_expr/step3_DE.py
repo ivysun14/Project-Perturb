@@ -5,12 +5,13 @@ Perform DE classification on STATE-predicted AnnData.
 """
 
 import os
+_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, resolved from this file's location
 import sys
 import argparse
 import pandas as pd
 import scanpy as sc
 
-os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+os.chdir(_REPO)
 sys.path.insert(0, 'majority_vote')
 from DE_DOC_stats import compute_de_statistics
 
@@ -20,7 +21,7 @@ args = parser.parse_args()
 
 pred_ds = args.pred_ds
 out_dir = f'STATE/perturbQA_expr/results/{pred_ds}'
-gene_universe = pd.read_csv('/home/jsun140/scratchyiqunchen/project_perturb_data/common_gene_universe_QA.csv')
+gene_universe = pd.read_csv('/projects/ychen756/project_perturb_data/common_gene_universe_QA.csv')
 
 
 def load_pred(path):

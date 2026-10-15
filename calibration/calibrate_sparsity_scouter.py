@@ -1,7 +1,8 @@
 import os
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repository root, resolved from this file's location
 import sys
 import argparse
-os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+os.chdir(_REPO)
 _root = os.path.abspath('.')
 sys.path.insert(0, _root)
 

@@ -30,7 +30,7 @@ from pathlib import Path
 # ── paths ──────────────────────────────────────────────────────────────────────
 WITHIN_RESULTS = Path("KNN_sensitivity_full_within_expr/results")
 CROSS_RESULTS  = Path("KNN_sensitivity_full_cross_expr/results")
-DATA_DIR       = Path("/home/jsun140/scratchyiqunchen/project_perturb_data")
+DATA_DIR       = Path("/projects/ychen756/project_perturb_data")
 GENE_UNIVERSE_CSV  = DATA_DIR / "common_gene_universe.csv"
 DROPPED_PERTS_JSON = DATA_DIR / "dropped_test_perts.json"
 
