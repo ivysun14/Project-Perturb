@@ -7,14 +7,14 @@ dropped-pert filters, for both the full and PerturbQA experiments.
 Full dataset:
   - Predictions: KNN_full_cross_expr/results/{DS}_k{K}_knn_transfer_predictions_{calib,test}.csv
     (calib + test concatenated = equivalent to _combined)
-  - Gene universe:  /home/jsun140/scratchyiqunchen/project_perturb_data/common_gene_universe.csv
-  - Dropped perts:  /home/jsun140/scratchyiqunchen/project_perturb_data/dropped_test_perts.json
+  - Gene universe:  /projects/ychen756/project_perturb_data/common_gene_universe.csv
+  - Dropped perts:  /projects/ychen756/project_perturb_data/dropped_test_perts.json
   - Output: KNN_full_cross_expr/cross_genept_metrics_filtered.csv
 
 PerturbQA dataset:
   - Predictions: KNN_perturbQA_cross_expr/results/{DS}_genept_k{K}_knn_transfer_predictions.csv
-  - Gene universe:  /home/jsun140/scratchyiqunchen/project_perturb_data/common_gene_universe_QA.csv
-  - Dropped perts:  /home/jsun140/scratchyiqunchen/project_perturb_data/dropped_test_perts_QA.json
+  - Gene universe:  /projects/ychen756/project_perturb_data/common_gene_universe_QA.csv
+  - Dropped perts:  /projects/ychen756/project_perturb_data/dropped_test_perts_QA.json
   - Output: KNN_perturbQA_cross_expr/cross_genept_metrics_filtered.csv
 
 Verification:
@@ -34,9 +34,9 @@ import pandas as pd
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from majority_vote.analysis_utility import compute_3class_metrics
+from metrics.class_metrics import compute_3class_metrics
 
-DATA_DIR = Path("/home/jsun140/scratchyiqunchen/project_perturb_data")
+DATA_DIR = Path("/projects/ychen756/project_perturb_data")
 DATASETS = ["K562", "RPE1", "HepG2", "Jurkat"]
 K_VALUES = [1, 10]
 

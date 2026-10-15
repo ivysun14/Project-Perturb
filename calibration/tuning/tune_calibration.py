@@ -42,14 +42,16 @@ import pandas as pd
 import anndata as ad
 import scanpy as sc
 
-_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, _project_root)
 sys.path.insert(0, os.path.join(_project_root, 'majority_vote'))
+sys.path.insert(0, os.path.join(_project_root, 'calibration'))
+sys.path.insert(0, os.path.join(_project_root, 'calibration', 'var_calibration'))
 
 from calibrate_var      import calibrate_variance
 from calibrate_sparsity import calibrate_zeros
 from majority_vote.DE_DOC_stats     import compute_de_statistics
-from majority_vote.analysis_utility import compute_3class_metrics
+from metrics.class_metrics import compute_3class_metrics
 
 os.chdir(_project_root)
 
@@ -59,10 +61,10 @@ DS_LIST = ['k562', 'rpe1', 'hepg2', 'jurkat']
 R_GRID  = [0.4, 0.6, 0.8, 1.0]
 
 DS_CSV = {
-    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
-    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
-    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
-    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
+    'k562':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
+    'rpe1':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
+    'hepg2':  '/projects/ychen756/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
+    'jurkat': '/projects/ychen756/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
 }
 
 # ─── Split definitions ────────────────────────────────────────────────────────

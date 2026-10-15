@@ -11,6 +11,7 @@ Evaluation: 'test' split of the same cell line.
 """
 
 import os
+import sys
 import numpy as np
 import pandas as pd
 import argparse
@@ -18,10 +19,11 @@ from sklearn.metrics import classification_report
 from analysis_utility import (
     train_gene_majority_vote,
     predict_from_gene_majority,
-    compute_3class_metrics,
     plot_data_summary,
 )
 from error_utility import run_error_analysis_from_results
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from metrics.class_metrics import compute_3class_metrics
 
 
 def load_and_merge_de_dir(de_path: str, dir_path: str) -> pd.DataFrame:

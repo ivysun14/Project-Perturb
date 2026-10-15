@@ -38,10 +38,10 @@ import warnings
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(_project_root)
 sys.path.append(os.path.join(_project_root, "majority_vote"))
-from majority_vote.analysis_utility import compute_3class_metrics
+from metrics.class_metrics import compute_3class_metrics
 
 # ============================================================
 # Feature set registry

@@ -1,14 +1,15 @@
 import os
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repository root, resolved from this file's location
 import sys
 import argparse
-os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+os.chdir(_REPO)
 _root = os.path.abspath('.')
 sys.path.insert(0, _root)
 sys.path.insert(0, os.path.join(_root, 'majority_vote'))
 import pandas as pd
 import scanpy as sc
 import anndata as ad
-from perturb_metrics import compute_all_metrics_from_dfs
+from metrics.perturb_metrics import compute_all_metrics_from_dfs
 
 ds_list = ['k562', 'rpe1', 'hepg2', 'jurkat']
 
@@ -17,10 +18,10 @@ parser.add_argument('--task_id', type=int, required=True, choices=range(len(ds_l
 args = parser.parse_args()
 ds_list = [ds_list[args.task_id]]
 ds_csv = {
-    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
-    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
-    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
-    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
+    'k562':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
+    'rpe1':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
+    'hepg2':  '/projects/ychen756/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
+    'jurkat': '/projects/ychen756/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
 }
 
 truth_df = {ds: pd.read_csv(ds_csv[ds]) for ds in ds_list}

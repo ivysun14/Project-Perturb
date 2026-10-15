@@ -1,22 +1,23 @@
 import os
+_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, resolved from this file's location
 import sys
 import json
 import argparse
-os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+os.chdir(_REPO)
 _root = os.path.abspath('.')
 sys.path.insert(0, _root)
 sys.path.insert(0, os.path.join(_root, 'majority_vote'))
 import pandas as pd
 import scanpy as sc
-from perturb_metrics import compute_all_metrics_from_dfs
+from metrics.perturb_metrics import compute_all_metrics_from_dfs
 
 ds_list = ['k562', 'rpe1', 'hepg2', 'jurkat']
-QA_DIR  = '/home/jsun140/scratchyiqunchen/project_perturb_data/perturbqa_datasets'
+QA_DIR  = '/projects/ychen756/project_perturb_data/perturbqa_datasets'
 ds_csv  = {
-    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
-    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
-    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
-    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
+    'k562':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
+    'rpe1':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
+    'hepg2':  '/projects/ychen756/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
+    'jurkat': '/projects/ychen756/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
 }
 
 parser = argparse.ArgumentParser()
@@ -24,13 +25,13 @@ parser.add_argument('--task_id', type=int, required=True, choices=range(len(ds_l
 args = parser.parse_args()
 pred_ds = ds_list[args.task_id]
 
-with open('/home/jsun140/scratchyiqunchen/project_perturb_data/dropped_test_perts_QA.json') as f:
+with open('/projects/ychen756/project_perturb_data/dropped_test_perts_QA.json') as f:
     dropped_perts = set(json.load(f)[pred_ds])
 print(f'\n{pred_ds}: dropping {len(dropped_perts)} perts')
 
 # exact QA test (pert, gene) pairs: drop dropped_perts, restrict to common gene universe
 common_genes = set(
-    pd.read_csv('/home/jsun140/scratchyiqunchen/project_perturb_data/common_gene_universe_QA.csv').iloc[:, 0]
+    pd.read_csv('/projects/ychen756/project_perturb_data/common_gene_universe_QA.csv').iloc[:, 0]
 )
 qa_de    = pd.read_csv(f'{QA_DIR}/{pred_ds}-de.csv')
 qa_test  = qa_de[qa_de['split'] == 'test'].copy()

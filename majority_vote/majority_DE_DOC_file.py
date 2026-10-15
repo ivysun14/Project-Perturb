@@ -19,6 +19,7 @@ Input CSV format (from DE_DOC_stats.py):
 """
 
 import os
+import sys
 import numpy as np
 import pandas as pd
 import argparse
@@ -27,10 +28,11 @@ from typing import Dict, Tuple
 from analysis_utility import (
     train_gene_majority_vote,
     predict_from_gene_majority,
-    compute_3class_metrics,
     plot_data_summary
 )
 from error_utility import run_error_analysis_from_results
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from metrics.class_metrics import compute_3class_metrics
 
 
 def load_de_doc_file(file_path: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:

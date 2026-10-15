@@ -10,9 +10,7 @@ import pandas as pd
 import scanpy as sc
 import scipy.sparse as sp
 from scipy.stats import pearsonr
-import sys
-sys.path.insert(0, '/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb/majority_vote')
-from analysis_utility import compute_3class_metrics
+from metrics.class_metrics import compute_3class_metrics
 
 
 ## Expression-level Metrics

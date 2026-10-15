@@ -41,7 +41,8 @@ from sklearn.metrics import classification_report
 from sklearn.exceptions import ConvergenceWarning
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from majority_vote.analysis_utility import compute_3class_metrics, plot_data_summary
+from metrics.class_metrics import compute_3class_metrics
+from majority_vote.analysis_utility import plot_data_summary
 from majority_vote.error_utility import run_error_analysis_from_results
 
 

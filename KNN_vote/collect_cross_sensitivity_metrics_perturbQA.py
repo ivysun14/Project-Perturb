@@ -27,13 +27,13 @@ import pandas as pd
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from majority_vote.analysis_utility import compute_3class_metrics
+from metrics.class_metrics import compute_3class_metrics
 
 RESULTS_DIR = Path("KNN_sensitivity_perturbQA_cross_expr/results")
 METRICS_OUT = Path("KNN_sensitivity_perturbQA_cross_expr/cross_sensitivity_metrics.csv")
 ZERO_NB_OUT = Path("KNN_sensitivity_perturbQA_cross_expr/zero_neighbor_pcts.csv")
 
-DATA_DIR           = Path("/home/jsun140/scratchyiqunchen/project_perturb_data")
+DATA_DIR           = Path("/projects/ychen756/project_perturb_data")
 GENE_UNIVERSE_CSV  = DATA_DIR / "common_gene_universe_QA.csv"
 DROPPED_PERTS_JSON = DATA_DIR / "dropped_test_perts_QA.json"
 

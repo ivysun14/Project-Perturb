@@ -16,7 +16,7 @@ from sklearn.neighbors import NearestNeighbors
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from majority_vote.analysis_utility import compute_3class_metrics
+from metrics.class_metrics import compute_3class_metrics
 
 
 # Perturbations with no ESM2 embedding (union across all 4 datasets).

@@ -30,12 +30,12 @@ from pathlib import Path
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from majority_vote.analysis_utility import compute_3class_metrics
+from metrics.class_metrics import compute_3class_metrics
 
 RESULTS_DIR  = Path("KNN_sensitivity_full_cross_expr/results")
 OUT_PATH     = Path("KNN_sensitivity_full_cross_expr/cross_sensitivity_metrics.csv")
 
-DATA_DIR = Path("/home/jsun140/scratchyiqunchen/project_perturb_data")
+DATA_DIR = Path("/projects/ychen756/project_perturb_data")
 GENE_UNIVERSE_CSV  = DATA_DIR / "common_gene_universe.csv"
 DROPPED_PERTS_JSON = DATA_DIR / "dropped_test_perts.json"
 

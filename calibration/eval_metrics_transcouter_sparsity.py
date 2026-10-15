@@ -1,21 +1,22 @@
 import os
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repository root, resolved from this file's location
 import sys
 import json
 import argparse
-os.chdir('/home/jsun140/scratchyiqunchen/jsun140/Project-Perturb')
+os.chdir(_REPO)
 _root = os.path.abspath('.')
 sys.path.insert(0, _root)
 sys.path.insert(0, os.path.join(_root, 'majority_vote'))
 import pandas as pd
 import scanpy as sc
-from perturb_metrics import compute_all_metrics_from_dfs
+from metrics.perturb_metrics import compute_all_metrics_from_dfs
 
 ds_list = ['k562', 'rpe1', 'hepg2', 'jurkat']
 ds_csv = {
-    'k562':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
-    'rpe1':   '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
-    'hepg2':  '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
-    'jurkat': '/home/jsun140/scratchyiqunchen/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
+    'k562':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_K562_splitted.csv',
+    'rpe1':   '/projects/ychen756/project_perturb_data/csv/DE_DOC_RPE1_splitted.csv',
+    'hepg2':  '/projects/ychen756/project_perturb_data/csv/DE_DOC_HepG2_splitted.csv',
+    'jurkat': '/projects/ychen756/project_perturb_data/csv/DE_DOC_Jurkat_splitted.csv',
 }
 
 parser = argparse.ArgumentParser()
@@ -30,10 +31,10 @@ out_dir         = 'calibration/sparsity_metrics/TranScouter'
 os.makedirs(out_dir, exist_ok=True)
 
 gene_universe = set(pd.read_csv(
-    '/home/jsun140/scratchyiqunchen/project_perturb_data/common_gene_universe.csv',
+    '/projects/ychen756/project_perturb_data/common_gene_universe.csv',
     index_col=0)['gene_name'].tolist())
 
-with open('/home/jsun140/scratchyiqunchen/project_perturb_data/dropped_test_perts.json') as f:
+with open('/projects/ychen756/project_perturb_data/dropped_test_perts.json') as f:
     dropped_perts = set(json.load(f)[ds])
 
 print(f'\n=== {ds} / testcalib (sparsity-calibrated, TranScouter) ===')

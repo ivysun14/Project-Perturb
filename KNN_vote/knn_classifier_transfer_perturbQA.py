@@ -21,7 +21,8 @@ from typing import Dict, List, Tuple, Optional, Union
 from sklearn.metrics import classification_report
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from majority_vote.analysis_utility import compute_3class_metrics, plot_data_summary
+from metrics.class_metrics import compute_3class_metrics
+from majority_vote.analysis_utility import plot_data_summary
 from majority_vote.error_utility import run_error_analysis_from_results
 from analysis_utility import (
     PERTS_NO_ESM2_EMBEDDING,

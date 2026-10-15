@@ -7,15 +7,15 @@ universe and dropped-pert filters, for both the full and PerturbQA experiments.
 Full dataset:
   - Predictions: logreg_0.01_full_cross_expr/results/
                  {DS}_logreg_transfer_logreg_predictions_{calib,test}.csv
-  - Gene universe:  /home/jsun140/scratchyiqunchen/project_perturb_data/common_gene_universe.csv
-  - Dropped perts:  /home/jsun140/scratchyiqunchen/project_perturb_data/dropped_test_perts.json
+  - Gene universe:  /projects/ychen756/project_perturb_data/common_gene_universe.csv
+  - Dropped perts:  /projects/ychen756/project_perturb_data/dropped_test_perts.json
   - Output: logreg_0.01_full_cross_expr/cross_logreg_metrics_filtered.csv
 
 PerturbQA dataset:
   - Predictions: logreg_0.01_perturbQA_cross_expr/results/
                  {DS}_logreg_transfer_predictions.csv
-  - Gene universe:  /home/jsun140/scratchyiqunchen/project_perturb_data/common_gene_universe_QA.csv
-  - Dropped perts:  /home/jsun140/scratchyiqunchen/project_perturb_data/dropped_test_perts_QA.json
+  - Gene universe:  /projects/ychen756/project_perturb_data/common_gene_universe_QA.csv
+  - Dropped perts:  /projects/ychen756/project_perturb_data/dropped_test_perts_QA.json
   - Output: logreg_0.01_perturbQA_cross_expr/cross_logreg_metrics_filtered.csv
 
 Run from logistic_reg/:
@@ -27,10 +27,10 @@ import sys
 import pandas as pd
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "majority_vote"))
-from analysis_utility import compute_3class_metrics
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from metrics.class_metrics import compute_3class_metrics
 
-DATA_DIR = Path("/home/jsun140/scratchyiqunchen/project_perturb_data")
+DATA_DIR = Path("/projects/ychen756/project_perturb_data")
 DATASETS = ["K562", "RPE1", "HepG2", "Jurkat"]
 
 
