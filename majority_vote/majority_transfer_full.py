@@ -80,7 +80,8 @@ if __name__ == "__main__":
         raise ValueError("Number of --de_doc_file_train paths must match number of --dataset_name_train names")
 
     os.makedirs(args.output_dir, exist_ok=True)
-    os.makedirs('error_analysis', exist_ok=True)
+    error_dir = os.path.join(os.path.dirname(args.output_dir), 'error_analysis')
+    os.makedirs(error_dir, exist_ok=True)
 
     print("="*70)
     print("3-Class Gene-Based Majority Vote Baseline - Transferability Experiment")
@@ -112,7 +113,7 @@ if __name__ == "__main__":
     print(f"  Combined set size: {len(combined_df)}")
 
     train_name = "+".join(args.dataset_name_train)
-    plot_data_summary(train_df, combined_df, args.dataset_name_test)
+    plot_data_summary(train_df, combined_df, args.dataset_name_test, output_dir=error_dir)
 
     print("\nTraining gene-level majority vote on source cell lines (train+test)...")
     gene_majority, gene_proba = train_gene_majority_vote(train_df, random_seed=305)
@@ -199,7 +200,8 @@ if __name__ == "__main__":
         true_labels=y_true_combined,
         adata=None,
         task_name="3class_DE",
-        class_names=['Non-DE', 'Up-regulated', 'Down-regulated']
+        class_names=['Non-DE', 'Up-regulated', 'Down-regulated'],
+        output_dir=error_dir,
     )
 
     print(f"\n{'='*70}")

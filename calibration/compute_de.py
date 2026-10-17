@@ -15,8 +15,8 @@ import anndata as ad
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(_project_root)
 sys.path.append(os.path.join(_project_root, "majority_vote"))
-from majority_vote.DE_DOC_stats import compute_de_statistics
-from majority_vote.analysis_utility import resolve_repeats
+from preprocessing.DE_DOC_stats import compute_de_statistics
+from preprocessing.data_utility import resolve_repeats
 
 ALPHA = 0.01
 LOG2FC_THRESHOLD = 0.00

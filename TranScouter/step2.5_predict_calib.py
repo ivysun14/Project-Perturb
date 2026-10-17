@@ -37,8 +37,8 @@ from sklearn.model_selection import train_test_split
 sys.path.insert(0, _REPO)
 sys.path.insert(0, os.path.join(_REPO, 'ModifiedScouter_TranScouter/TranScouter'))
 sys.path.insert(0, os.path.join(_REPO, 'majority_vote'))
-from majority_vote.analysis_utility import resolve_repeats
-from majority_vote.DE_DOC_stats import compute_de_statistics
+from preprocessing.data_utility import resolve_repeats
+from preprocessing.DE_DOC_stats import compute_de_statistics
 from transcouter import TranScouter, ScouterData
 
 ds_list = ['k562', 'rpe1', 'hepg2', 'jurkat']

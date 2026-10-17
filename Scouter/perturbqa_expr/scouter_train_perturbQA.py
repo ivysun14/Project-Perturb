@@ -12,7 +12,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, _REPO)
-from majority_vote.analysis_utility import resolve_repeats
+from preprocessing.data_utility import resolve_repeats
 from ModifiedScouter_TranScouter.scouter import Scouter, ScouterData
 
 

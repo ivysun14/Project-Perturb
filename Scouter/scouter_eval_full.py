@@ -2,9 +2,9 @@ import os
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repository root, resolved from this file's location
 import sys
 os.chdir(_REPO)
-sys.path.insert(0, os.path.join(_REPO, 'majority_vote'))
+sys.path.insert(0, _REPO)
 import scanpy as sc
-from DE_DOC_stats import compute_de_statistics
+from preprocessing.DE_DOC_stats import compute_de_statistics
 import argparse
 import itertools
 

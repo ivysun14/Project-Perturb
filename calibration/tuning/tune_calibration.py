@@ -50,7 +50,7 @@ sys.path.insert(0, os.path.join(_project_root, 'calibration', 'var_calibration')
 
 from calibrate_var      import calibrate_variance
 from calibrate_sparsity import calibrate_zeros
-from majority_vote.DE_DOC_stats     import compute_de_statistics
+from preprocessing.DE_DOC_stats import compute_de_statistics
 from metrics.class_metrics import compute_3class_metrics
 
 os.chdir(_project_root)

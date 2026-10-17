@@ -11,8 +11,11 @@ The approach is:
 
 import numpy as np
 import pandas as pd
+import os
+import sys
 from sklearn.model_selection import train_test_split
-from analysis_utility import update_DE_DOC_labels
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from preprocessing.data_utility import update_DE_DOC_labels
 
 def split_train_test(df: pd.DataFrame, file_path: str, test_size: float = 0.20, random_state: int = 305) -> pd.DataFrame:
     """

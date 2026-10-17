@@ -74,3 +74,4 @@ baseline/
 baseline_output/
 table_scripts/
 wikicrow_embeddings/
+.claude/

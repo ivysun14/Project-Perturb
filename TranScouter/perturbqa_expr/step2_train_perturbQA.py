@@ -17,7 +17,7 @@ from sklearn.model_selection import train_test_split
 
 sys.path.insert(0, _REPO)
 sys.path.insert(0, os.path.join(_REPO, 'ModifiedScouter_TranScouter/TranScouter'))
-from majority_vote.analysis_utility import resolve_repeats
+from preprocessing.data_utility import resolve_repeats
 from transcouter import TranScouter, ScouterData
 
 ds_list = ['k562', 'rpe1', 'hepg2', 'jurkat']

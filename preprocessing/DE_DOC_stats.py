@@ -29,7 +29,9 @@ from scipy.stats import ranksums
 from statsmodels.stats.multitest import multipletests
 from typing import Optional
 import argparse
-from analysis_utility import resolve_repeats
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from preprocessing.data_utility import resolve_repeats
 
 
 def compute_de_statistics(

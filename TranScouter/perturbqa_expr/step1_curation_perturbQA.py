@@ -8,7 +8,7 @@ import scanpy as sc
 import scipy.sparse as sp
 
 sys.path.insert(0, _REPO)
-from majority_vote.analysis_utility import resolve_repeats
+from preprocessing.data_utility import resolve_repeats
 
 os.chdir(_REPO)
 
