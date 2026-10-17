@@ -71,4 +71,3 @@ python metric_drop_perts.py
 - **`analysis_utility.py`** — `train_gene_majority_vote()`, `predict_from_gene_majority()`, `plot_data_summary()` (`compute_3class_metrics()` moved to `metrics/class_metrics.py`)
 - **`error_utility.py`** — `run_error_analysis_from_results()` and `ErrorAnalyzer` class for per-gene and per-perturbation error analysis
 - **`metric_drop_perts.py`** — recomputes cross-cell-line metrics after gene universe and pert-drop filtering for both full (`DE_full_cross_expr/`) and PerturbQA (`DE_PerturbQA_cross_expr/`) experiments; outputs `cross_majority_metrics_filtered.csv` in each experiment directory
-- DE calling and data splits (`DE_DOC_stats.py`, `train_test_split.py`, `calibration_split.py`) moved to `preprocessing/`

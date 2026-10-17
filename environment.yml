@@ -1,7 +1,8 @@
 name: Project-Perturb
 channels:
-  - defaults
   - conda-forge
+  - bioconda
+  - defaults
 dependencies:
   - python=3.11.8
   - matplotlib=3.10.8
@@ -11,8 +12,16 @@ dependencies:
   - scikit-learn=1.8.0
   - statsmodels=0.14.6
   - pip=26.0.1
+  # R: pseudobulk DE for de_sensitivity/ (limma.R, DESeq2.R)
+  - r-base=4.4.3
+  - r-data.table=1.18.6.1
+  - bioconductor-deseq2=1.46.0
+  - bioconductor-limma=3.62.1
+  - bioconductor-edger=4.4.0
+  - bioconductor-rhdf5=2.50.0
   - pip:
     - anndata==0.12.10
+    - h5py==3.16.0
     - torch==2.11.0
     - scanpy==1.11.5
     - scipy==1.17.1
